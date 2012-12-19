@@ -1,38 +1,24 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
+import abc
+
 from util.stats import sample_mniw
 
-##################
-#  PLACEHOLDERS  #
-##################
+'''
+predictive samplers for basic distributions
+'''
 
-class iidgaussian(object):
-    def __init__(self):
-        self.val = np.random.randn()
-
-    def sample_next(self):
-        return self.val
-
-class iidpoisson(object):
-    def __init__(self):
-        self.val = np.random.poisson(5) + 1
-
-    def sample_next(self):
-        return self.val
-
-################
-#  Real Stuff  #
-################
-
-import abc
+# TODO
+# * non-conjugate
+# * 'momentum' AR
 
 class PredictiveSampler(object):
     __metaclass__ = abc.ABCMeta
 
     def sample_next(self,*args,**kwargs):
         val = self._sample(*args,**kwargs)
-        self._update_hypparams(val,*args,**kwargs)
+        self._update_hypparams(val)
         return val
 
     @abc.abstractmethod
@@ -43,7 +29,7 @@ class PredictiveSampler(object):
     def _sample(self):
         pass
 
-class Poisson(object):
+class Poisson(PredictiveSampler):
     def __init__(self,alpha_0,beta_0):
         self.alpha_n = alpha_0
         self.beta_n = beta_0
@@ -53,45 +39,61 @@ class Poisson(object):
         self.beta_n += 1
 
     def _sample(self):
-        return np.random.poisson(np.random.gamma(self.alpha_n,1./self.beta_n))
+        return np.random.poisson(np.random.gamma(self.alpha_n,1./self.beta_n))+1
 
-class MNIWAR(object):
-    def __init__(self,n_0,sigma_0,M,K):
+class MNIWAR(PredictiveSampler):
+    # TODO should work with choleskys
+    def __init__(self,n_0,kappa_0,sigma_0,M,K):
         # hyperparameters
         self.n = n_0
-        self.sigma_n = self.sigma_0 = sigma_0
+        self.kappa_n = kappa_0
+        self.sigma_0 = sigma_0
         self.M_n = M
         self.K_n = K
+        self.sigma_n = sigma_0.copy()
 
         # statistics
-        self.Sytyt = K
+        self.Sytyt = K.copy()
         self.Syyt = M.dot(K)
         self.Syy = M.dot(K).dot(M.T)
 
-    def _update_hypparams(self,y,lagged_observations):
-        ylags = self._pad_ylags(lagged_observations)
+    def _update_hypparams(self,y):
+        ylags = self._ylags # gets info passed from previous _sample call, state!
 
-        self.Syy += y * y[:,na]
-        self.Sytyt += ylags * ylags[:,na]
-        self.Syyt += y * ylags[:,na]
+        self.Syy += y[:,na] * y
+        self.Sytyt += ylags[:,na] * ylags
+        self.Syyt += y[:,na] * ylags
 
-        M_n = np.linalg.solve(self.Sytyt.T,self.Syyt.T).T
-        Sy_yt = self.Syy - M_n.dot(self.Sytyt.T)
+        M_n = np.linalg.solve(self.Sytyt,self.Syyt.T).T
+        Sy_yt = self.Syy - M_n.dot(self.Syyt.T)
 
         self.n += 1
+        self.kappa_n += 1
         self.sigma_n = Sy_yt + self.sigma_0
         self.M_n = M_n
         self.K_n = self.Sytyt
 
-    def _sample(self,lagged_observations):
-        ylags = self._pad_ylags(lagged_observations)
-        A = sample_mniw(self.n,self.sigma_n,self.M_n,self.K_n)
-        return A.dot(ylags)
+        assert np.allclose(self.sigma_n,self.sigma_n.T) and (np.linalg.eigvals(self.sigma_n) > 0).all()
+        assert np.allclose(self.K_n,self.K_n.T) and (np.linalg.eigvals(self.K_n) > 0).all()
 
-    def _pad_ylags(self,lagged_observations):
-        ylags = np.zeros(self.K.shape[0]+1)
-        temp = np.concatenate(lagged_observations)
+    def _sample(self,lagged_outputs):
+        ylags = self._ylags = self._pad_ylags(lagged_outputs)
+        A,sigma = sample_mniw(self.n,self.kappa_n,self.sigma_n,self.M_n,np.linalg.inv(self.K_n))
+        print A
+        print sigma
+        print ''
+        return A.dot(ylags) + np.linalg.cholesky(sigma).dot(np.random.randn(sigma.shape[0]))
+
+    def _pad_ylags(self,lagged_outputs):
+        ylags = np.zeros(self.M_n.shape[1])
+
+        # plug in lagged data
+        temp = np.array(lagged_outputs)
+        temp.shape = (-1,)
         ylags[:temp.shape[0]] = temp
+
+        # plug in affine drift
         ylags[-1] = 1
+
         return ylags
 
