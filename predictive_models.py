@@ -6,9 +6,13 @@ import abc, copy
 from pymattutil.stats import sample_discrete
 
 '''non-iid predictive samplers, mostly crp models'''
+# PredictiveModels keep the 'track' and are used directly as particles
+# in fact, they should just be called particles
 
 class PredictiveModel(object):
     __metaclass__ = abc.ABCMeta
+
+    # needs a self.track member
 
     @abc.abstractmethod
     def sample_next(self,*args,**kwargs):
@@ -18,14 +22,32 @@ class PredictiveModel(object):
         return copy.deepcopy(self)
 
 
-class AR(object):
-    def __init__(self,numlags,baseclass):
-        self.lagged_outputs = deque(maxlen=numlags)
+###########################################
+#  Wrappers for predictive_distributions  #
+###########################################
+
+class IID(PredictiveModel):
+    def __init__(self,baseclass):
         self.sampler = baseclass()
+        self.track = []
+
+    def sample_next(self):
+        self.track.append(self.sampler.sample_next())
+        return self.track[-1]
+
+    def __getattr__(self,name):
+        return getattr(self.sampler,name)
+
+
+class AR(IID):
+    def __init__(self,numlags,baseclass):
+        super(AR,self).__init__(baseclass)
+        self.lagged_outputs = deque(maxlen=numlags)
 
     def sample_next(self):
         out = self.sampler.sample_next(lagged_outputs=self.lagged_outputs)
         self.lagged_outputs.appendleft(out)
+        self.track.append(out)
         return out
 
 
@@ -47,7 +69,7 @@ class _CRPIndexSampler(object):
         return np.concatenate((np.bincount(self.assignments),(self.alpha,)))
 
 
-def CRPSampler(object): # TODO
+def CRPSampler(PredictiveModel): # TODO
     pass
 
 
@@ -61,16 +83,18 @@ class _CRFIndexSampler(object):
         return self.meta_table_assignments[restaurant_idx][self.table_samplers[restaurant_idx].sample_next()]
 
 
-class HDPHMMSampler(object):
+class HDPHMMSampler(PredictiveModel):
     def __init__(self,alpha,gamma,obs_sampler_factory):
         self.state_sampler = _CRFIndexSampler(alpha,gamma)
         self.dishes = defaultdict(obs_sampler_factory)
         self.stateseq = []
+        self.track = []
 
     def sample_next(self,*args,**kwargs):
         cur_state = self.stateseq[-1] if len(self.stateseq) > 0 else 0
         self.stateseq.append(self.state_sampler.sample_next(cur_state))
-        return self.dishes[self.stateseq[-1]].sample_next(out=self.out,*args,**kwargs)
+        self.track.append(self.dishes[self.stateseq[-1]].sample_next(out=self.out,*args,**kwargs))
+        return self.track[-1]
 
 
 class HDPHSMMSampler(HDPHMMSampler):
@@ -87,10 +111,11 @@ class HDPHSMMSampler(HDPHMMSampler):
             cur_state = self.stateseq[-1] if len(self.stateseq) > 0 else 0
             self.stateseq.append(self.state_sampler.sample_next(cur_state))
             self.dur_counter = self.dur_dishes[self.stateseq[-1]].sample_next() - 1
-        return self.dishes[self.stateseq[-1]].sample_next(*args,**kwargs)
+        self.track.append(self.dishes[self.stateseq[-1]].sample_next(*args,**kwargs))
+        return self.track[-1]
 
 
-### classes below are for ruling out self-transitions
+### classes below are for ruling out self-transitions and probably need updating
 
 class _CRPIndexSamplerTaboo(_CRPIndexSampler):
     def __init__(self,alpha):
@@ -119,7 +144,7 @@ class _CRFIndexSamplerNoSelf(_CRFIndexSampler):
                 [self.table_samplers[restaurant_idx].sample_next()](restaurant_idx)
 
 
-class HDPHSMMNoSelfSampler(object):
+class HDPHSMMNoSelfSampler(PredictiveModel):
     def __init__(self,alpha,gamma,obs_sampler_factory,dur_sampler_factory):
         self.state_sampler = _CRFIndexSamplerNoSelf(alpha,gamma)
         self.dishes = defaultdict(obs_sampler_factory)

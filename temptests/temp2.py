@@ -8,8 +8,8 @@ import predictive_distributions as d
 
 nlags = 2
 MNIWARparams = (
-            2.5,1e1,
-            1e1*np.eye(2),
+            2.5,5,
+            10*np.eye(2),
             np.hstack((0.5*np.eye(2),np.zeros((2,(nlags-1)*2)),np.zeros((2,1)))),
             np.diag((10.,)*(2*nlags) + (10.,))
             )
@@ -27,7 +27,7 @@ a = predictive_models.AR(
 data = []
 for itr in range(100):
     data.append(a.sample_next())
-    if np.linalg.norm(data[-1]) > 500:
+    if np.linalg.norm(data[-1]) > 1000:
         break
 data = np.array(data)
 

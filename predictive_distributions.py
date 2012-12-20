@@ -65,6 +65,9 @@ class MNIWAR(PredictiveDistribution):
         self.Syyt = M.dot(K)
         self.Syy = M.dot(K).dot(M.T)
 
+        # error handling
+        self._broken = False
+
     def _update_hypparams(self,y):
         ylags = self._ylags # gets info passed from previous _sample call, state!
 
@@ -81,16 +84,24 @@ class MNIWAR(PredictiveDistribution):
         self.M_n = M_n
         self.K_n = self.Sytyt
 
-        assert np.allclose(self.sigma_n,self.sigma_n.T) and (np.linalg.eigvals(self.sigma_n) > 0).all()
-        assert np.allclose(self.K_n,self.K_n.T) and (np.linalg.eigvals(self.K_n) > 0).all()
+        try:
+            assert np.allclose(self.sigma_n,self.sigma_n.T) and (np.linalg.eigvals(self.sigma_n) > 0).all()
+            assert np.allclose(self.K_n,self.K_n.T) and (np.linalg.eigvals(self.K_n) > 0).all()
+        except AssertionError:
+            print 'WARNING: particle exploded'
+            self._broken = True
 
     def _sample(self,lagged_outputs):
-        ylags = self._ylags = self._pad_ylags(lagged_outputs)
-        A,sigma = sample_mniw(self.n,self.kappa_n,self.sigma_n,self.M_n,np.linalg.inv(self.K_n))
-        # print A
-        # print sigma
-        # print ''
-        return A.dot(ylags) + np.linalg.cholesky(sigma).dot(np.random.randn(sigma.shape[0]))
+        if not self._broken:
+            try:
+                ylags = self._ylags = self._pad_ylags(lagged_outputs)
+                A,sigma = sample_mniw(self.n,self.kappa_n,self.sigma_n,self.M_n,np.linalg.inv(self.K_n))
+                return A.dot(ylags) + np.linalg.cholesky(sigma).dot(np.random.randn(sigma.shape[0]))
+            except np.linalg.LinAlgError:
+                print 'WARNING: particle broke'
+                self._broken = True
+        return -99999*np.ones(self.M_n.shape[0])
+
 
     def _pad_ylags(self,lagged_outputs):
         ylags = np.zeros(self.M_n.shape[1])
