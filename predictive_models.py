@@ -1,12 +1,37 @@
 from __future__ import division
 import numpy as np
 from collections import defaultdict, deque
+import abc, copy
 
 from pymattutil.stats import sample_discrete
 
-'''
-CRP-based predictive samplers
-'''
+'''non-iid predictive samplers, mostly crp models'''
+
+class PredictiveModel(object):
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
+    def sample_next(self,*args,**kwargs):
+        pass
+
+    def copy(self):
+        return copy.deepcopy(self)
+
+
+class AR(object):
+    def __init__(self,numlags,baseclass):
+        self.lagged_outputs = deque(maxlen=numlags)
+        self.sampler = baseclass()
+
+    def sample_next(self):
+        out = self.sampler.sample_next(lagged_outputs=self.lagged_outputs)
+        self.lagged_outputs.appendleft(out)
+        return out
+
+
+################
+#  CRP models  #
+################
 
 class _CRPIndexSampler(object):
     def __init__(self,alpha):
@@ -21,8 +46,10 @@ class _CRPIndexSampler(object):
     def _get_distr(self):
         return np.concatenate((np.bincount(self.assignments),(self.alpha,)))
 
-def CRPSampler(object):
-    pass # TODO
+
+def CRPSampler(object): # TODO
+    pass
+
 
 class _CRFIndexSampler(object):
     def __init__(self,alpha,gamma):
@@ -32,6 +59,7 @@ class _CRFIndexSampler(object):
 
     def sample_next(self,restaurant_idx):
         return self.meta_table_assignments[restaurant_idx][self.table_samplers[restaurant_idx].sample_next()]
+
 
 class HDPHMMSampler(object):
     def __init__(self,alpha,gamma,obs_sampler_factory):
@@ -43,6 +71,7 @@ class HDPHMMSampler(object):
         cur_state = self.stateseq[-1] if len(self.stateseq) > 0 else 0
         self.stateseq.append(self.state_sampler.sample_next(cur_state))
         return self.dishes[self.stateseq[-1]].sample_next(out=self.out,*args,**kwargs)
+
 
 class HDPHSMMSampler(HDPHMMSampler):
     def __init__(self,alpha,gamma,obs_sampler_factory,dur_sampler_factory):
@@ -60,6 +89,8 @@ class HDPHSMMSampler(HDPHMMSampler):
             self.dur_counter = self.dur_dishes[self.stateseq[-1]].sample_next() - 1
         return self.dishes[self.stateseq[-1]].sample_next(*args,**kwargs)
 
+
+# TODO this class is redundant with AR wrapper; get rid of it
 class HDPHSMMARSampler(HDPHSMMSampler):
     def __init__(self,numlags,*args,**kwargs):
         super(HDPHSMMARSampler,self).__init__(*args,**kwargs)
@@ -70,7 +101,7 @@ class HDPHSMMARSampler(HDPHSMMSampler):
         self.lagged_outputs.appendleft(out)
         return out
 
-# the next few classes are for ruling out self-transitions
+### classes below are for ruling out self-transitions
 
 class _CRPIndexSamplerTaboo(_CRPIndexSampler):
     def __init__(self,alpha):
@@ -87,6 +118,7 @@ class _CRPIndexSamplerTaboo(_CRPIndexSampler):
         distn[taboo] = 0
         return distn
 
+
 class _CRFIndexSamplerNoSelf(_CRFIndexSampler):
     def __init__(self,alpha,gamma):
         self.table_samplers = defaultdict(lambda: _CRPIndexSampler(alpha))
@@ -96,6 +128,7 @@ class _CRFIndexSamplerNoSelf(_CRFIndexSampler):
     def sample_next(self,restaurant_idx):
         return self.meta_table_assignments[restaurant_idx]\
                 [self.table_samplers[restaurant_idx].sample_next()](restaurant_idx)
+
 
 class HDPHSMMNoSelfSampler(object):
     def __init__(self,alpha,gamma,obs_sampler_factory,dur_sampler_factory):

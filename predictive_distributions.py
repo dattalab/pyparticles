@@ -1,25 +1,22 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-import abc
+import abc, copy
 
 from util.stats import sample_mniw
 
-'''
-predictive samplers for basic distributions
-'''
+'''predictive samplers for basic distributions'''
 
-# TODO
-# * non-conjugate
-# * 'momentum' AR
-
-class PredictiveSampler(object):
+class PredictiveDistribution(object):
     __metaclass__ = abc.ABCMeta
 
     def sample_next(self,*args,**kwargs):
         val = self._sample(*args,**kwargs)
         self._update_hypparams(val)
         return val
+
+    def copy(self):
+        return copy.deepcopy(self)
 
     @abc.abstractmethod
     def _update_hypparams(self,x):
@@ -29,7 +26,11 @@ class PredictiveSampler(object):
     def _sample(self):
         pass
 
-class Poisson(PredictiveSampler):
+###############
+#  Durations  #
+###############
+
+class Poisson(PredictiveDistribution):
     def __init__(self,alpha_0,beta_0):
         self.alpha_n = alpha_0
         self.beta_n = beta_0
@@ -41,8 +42,15 @@ class Poisson(PredictiveSampler):
     def _sample(self):
         return np.random.poisson(np.random.gamma(self.alpha_n,1./self.beta_n))+1
 
-class MNIWAR(PredictiveSampler):
-    # TODO should work with choleskys
+class NegativeBinomial(PredictiveDistribution): # TODO
+    pass
+
+##################
+#  Observations  #
+##################
+
+class MNIWAR(PredictiveDistribution):
+    '''Conjugate Matrix-Normal-Inverse-Wishart prior'''
     def __init__(self,n_0,kappa_0,sigma_0,M,K):
         # hyperparameters
         self.n = n_0
@@ -79,9 +87,9 @@ class MNIWAR(PredictiveSampler):
     def _sample(self,lagged_outputs):
         ylags = self._ylags = self._pad_ylags(lagged_outputs)
         A,sigma = sample_mniw(self.n,self.kappa_n,self.sigma_n,self.M_n,np.linalg.inv(self.K_n))
-        print A
-        print sigma
-        print ''
+        # print A
+        # print sigma
+        # print ''
         return A.dot(ylags) + np.linalg.cholesky(sigma).dot(np.random.randn(sigma.shape[0]))
 
     def _pad_ylags(self,lagged_outputs):
@@ -96,4 +104,21 @@ class MNIWAR(PredictiveSampler):
         ylags[-1] = 1
 
         return ylags
+
+
+class NIWNonConjAR(PredictiveDistribution): # TODO
+    # Gibbs steps on copy
+    # normal, normal, inverse wishart
+    # should use an IW class and a Gaussian class that do blocked gibbs
+    # like pyhsmm distribution classes but which take stats, not data, and only
+    # need to draw samples
+    pass
+
+
+class _InverseWishart(object):
+    pass
+
+
+class _Gaussian(object):
+    pass
 

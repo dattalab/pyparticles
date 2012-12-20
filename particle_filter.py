@@ -1,8 +1,7 @@
 from __future__ import division
 import numpy as np
-import copy
 
-# TODO test
+# TODO test with synthetic and/or interactive
 
 class ParticleFilter(object):
     def __init__(self,dim,n_particles,cutoff,log_likelihood_fn,particle_factory):
@@ -27,7 +26,7 @@ class ParticleFilter(object):
 
     def _resample(self):
         sources = np.random.multinomial(1,self.weights_norm,size=len(self.particles)).argmax(1)
-        self.particles = [copy.deepcopy(self.particles[idx]) for idx in sources]
+        self.particles = [self.particles[idx].copy() for idx in sources]
         self.log_weights = (np.logaddexp.reduce(self.log_weights) - np.log(len(self.particles))) \
                 * np.ones(len(self.particles))
 
