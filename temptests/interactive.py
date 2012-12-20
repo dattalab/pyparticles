@@ -23,17 +23,3 @@ a = predictive_models.AR(
                 dur_sampler_factory=lambda: d.Poisson(5*10,5),
                 )
         )
-
-data = []
-for itr in range(100):
-    data.append(a.sample_next())
-    if np.linalg.norm(data[-1]) > 500:
-        break
-data = np.array(data)
-
-plt.figure()
-plt.plot(data[:,0],data[:,1],'k-')
-stateseq = np.array(a.sampler.stateseq)
-for i in range(len(set(stateseq))):
-    plt.plot(data[stateseq == i,0],data[stateseq == i,1],'o')
-

@@ -90,17 +90,6 @@ class HDPHSMMSampler(HDPHMMSampler):
         return self.dishes[self.stateseq[-1]].sample_next(*args,**kwargs)
 
 
-# TODO this class is redundant with AR wrapper; get rid of it
-class HDPHSMMARSampler(HDPHSMMSampler):
-    def __init__(self,numlags,*args,**kwargs):
-        super(HDPHSMMARSampler,self).__init__(*args,**kwargs)
-        self.lagged_outputs = deque(maxlen=numlags)
-
-    def sample_next(self):
-        out = super(HDPHSMMARSampler,self).sample_next(lagged_outputs=self.lagged_outputs)
-        self.lagged_outputs.appendleft(out)
-        return out
-
 ### classes below are for ruling out self-transitions
 
 class _CRPIndexSamplerTaboo(_CRPIndexSampler):
