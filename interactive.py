@@ -56,7 +56,7 @@ def dumb_noise():
         plt.plot(t[:,0],t[:,1],'rx-')
         print p
 
-    interactive(5000,2000,particle_factory,plotfunc)
+    interactive(5000,2500,particle_factory,plotfunc)
 
 
 def dumb_momentum():
@@ -77,7 +77,7 @@ def dumb_momentum():
         plt.plot(t[:,0],t[:,1],'rx-')
         print p
 
-    interactive(10000,2000,particle_factory,plotfunc)
+    interactive(10000,2500,particle_factory,plotfunc)
 
 
 def interactive(nparticles,cutoff,particle_factory,plotfunc):
