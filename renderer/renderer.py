@@ -316,7 +316,7 @@ class MouseScene(object):
 		self.data = data
 		self.likelihood = likelihood
 		self.diffmap = this_diff
-		np.savez("/Users/Alex/Desktop/frame.npz", \
+		np.savez("data/frame.npz", \
 						frame=data, \
 						diffmap=this_diff, \
 						likelihood = likelihood,
@@ -400,7 +400,7 @@ class MouseScene(object):
 		self.mouse_img_size_location = glGetUniformLocation(self.shaderProgram, "mouse_img_size")
 
 	def setup_texture(self):
-		f = np.load("/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/meanmouse.npz")
+		f = np.load("data/meanmouse.npz")
 		self.mouse_img = f['mouse_img'].astype('float32')
 		width,height = self.mouse_img.shape
 		img_for_texture = self.mouse_img[:,:].ravel()
