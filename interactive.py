@@ -8,15 +8,15 @@ import predictive_models as pm
 import predictive_distributions as pd
 import particle_filter as pf
 
-COLORS = ['r','g','y','c','m','k']
+COLORS = ['r','g','c','m','k']
 
 def interactive():
     nlags = 2
     MNIWARparams = (
                 4,6,
-                2.5*np.eye(2),
+                5*np.eye(2),
                 np.zeros((2,2*nlags+1)),
-                np.diag((1.,)*(2*nlags) + (1.,))
+                np.diag((1.,)*(2*nlags) + (0.01,))
                 )
 
     particle_factory = lambda: \
@@ -39,7 +39,7 @@ def interactive():
 
     points = [np.zeros(2)]
 
-    particlefilter = pf.ParticleFilter(2,2000,1000,loglikelihood,particle_factory)
+    particlefilter = pf.ParticleFilter(2,2500,300,loglikelihood,particle_factory)
 
     plt.ioff()
 

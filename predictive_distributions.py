@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-import abc, copy
+import abc
 
 from util.stats import sample_mniw
 
@@ -15,8 +15,9 @@ class PredictiveDistribution(object):
         self._update_hypparams(val)
         return val
 
+    @abc.abstractmethod
     def copy(self):
-        return copy.deepcopy(self)
+        pass
 
     @abc.abstractmethod
     def _update_hypparams(self,x):
@@ -42,6 +43,10 @@ class Poisson(PredictiveDistribution):
     def _sample(self):
         return np.random.poisson(np.random.gamma(self.alpha_n,1./self.beta_n))+1
 
+    def copy(self):
+        return Poisson(self.alpha_n,self.beta_n)
+
+
 class NegativeBinomial(PredictiveDistribution): # TODO
     pass
 
@@ -65,6 +70,10 @@ class MNIWAR(PredictiveDistribution):
         self.Syyt = M.dot(K)
         self.Syy = M.dot(K).dot(M.T)
 
+        # temporary variables to cut down on mallocs
+        self.Sy_yt = np.empty(self.sigma_0.shape)
+        self._ylags = np.zeros(self.M_n.shape[1])
+
         # error handling
         self._broken = False
 
@@ -76,17 +85,19 @@ class MNIWAR(PredictiveDistribution):
         self.Syyt += y[:,na] * ylags
 
         M_n = np.linalg.solve(self.Sytyt,self.Syyt.T).T
-        Sy_yt = self.Syy - M_n.dot(self.Syyt.T)
+        np.dot(-M_n,self.Syyt.T,out=self.Sy_yt)
+        self.Sy_yt += self.Syy
 
         self.n += 1
         self.kappa_n += 1
-        self.sigma_n = Sy_yt + self.sigma_0
+        np.add(self.Sy_yt,self.sigma_0,out=self.sigma_n)
         self.M_n = M_n
         self.K_n = self.Sytyt
 
         try:
-            assert np.allclose(self.sigma_n,self.sigma_n.T) and (np.linalg.eigvals(self.sigma_n) > 0).all()
-            assert np.allclose(self.K_n,self.K_n.T) and (np.linalg.eigvals(self.K_n) > 0).all()
+            pass
+            # assert np.allclose(self.sigma_n,self.sigma_n.T) and (np.linalg.eigvals(self.sigma_n) > 0).all()
+            # assert np.allclose(self.K_n,self.K_n.T) and (np.linalg.eigvals(self.K_n) > 0).all()
         except AssertionError:
             print 'WARNING: particle exploded'
             self._broken = True
@@ -94,7 +105,7 @@ class MNIWAR(PredictiveDistribution):
     def _sample(self,lagged_outputs):
         if not self._broken:
             try:
-                ylags = self._ylags = self._pad_ylags(lagged_outputs)
+                ylags = self._pad_ylags(lagged_outputs)
                 A,sigma = sample_mniw(self.n,self.kappa_n,self.sigma_n,self.M_n,np.linalg.inv(self.K_n))
                 return A.dot(ylags) + np.linalg.cholesky(sigma).dot(np.random.randn(sigma.shape[0]))
             except np.linalg.LinAlgError:
@@ -104,7 +115,8 @@ class MNIWAR(PredictiveDistribution):
 
 
     def _pad_ylags(self,lagged_outputs):
-        ylags = np.zeros(self.M_n.shape[1])
+        ylags = self._ylags
+        ylags[...] = 0
 
         # plug in lagged data
         temp = np.array(lagged_outputs)
@@ -115,6 +127,22 @@ class MNIWAR(PredictiveDistribution):
         ylags[-1] = 1
 
         return ylags
+
+    def copy(self):
+        new = self.__new__(self.__class__)
+        new.n = self.n
+        new.kappa_n = self.kappa_n
+        new.sigma_0 = self.sigma_0
+        new.sigma_n = self.sigma_n.copy()
+        new.M_n = self.M_n
+        new.K_n = self.K_n
+        new.Sytyt = self.Sytyt.copy()
+        new.Syyt = self.Syyt.copy()
+        new.Syy = self.Syy.copy()
+        new.Sy_yt = self.Sy_yt.copy()
+        new._ylags = self._ylags.copy()
+        new._broken = self._broken
+        return new
 
 
 class NIWNonConjAR(PredictiveDistribution): # TODO

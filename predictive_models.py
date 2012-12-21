@@ -18,13 +18,13 @@ class PredictiveModel(object):
     def sample_next(self,*args,**kwargs):
         pass
 
+    @abc.abstractmethod
     def copy(self):
-        return copy.deepcopy(self)
+        pass
 
-
-###########################################
-#  Wrappers for predictive_distributions  #
-###########################################
+#######################
+#  Particle wrappers  #
+#######################
 
 class IID(PredictiveModel):
     def __init__(self,baseclass):
@@ -38,6 +38,12 @@ class IID(PredictiveModel):
     def __getattr__(self,name):
         return getattr(self.sampler,name)
 
+    def copy(self):
+        new = self.__new__(self.__class__)
+        new.track = self.track[:]
+        new.sampler = self.sampler.copy()
+        return new
+
 
 class AR(IID):
     def __init__(self,numlags,baseclass):
@@ -49,6 +55,11 @@ class AR(IID):
         self.lagged_outputs.appendleft(out)
         self.track.append(out)
         return out
+
+    def copy(self):
+        new = super(AR,self).copy()
+        new.lagged_outputs = self.lagged_outputs.__copy__()
+        return new
 
 
 ################
@@ -68,6 +79,12 @@ class _CRPIndexSampler(object):
     def _get_distr(self):
         return np.concatenate((np.bincount(self.assignments),(self.alpha,)))
 
+    def copy(self):
+        new = self.__new__(_CRPIndexSampler)
+        new.alpha = self.alpha
+        new.assignments = self.assignments[:]
+        return new
+
 
 def CRPSampler(PredictiveModel): # TODO
     pass
@@ -82,19 +99,33 @@ class _CRFIndexSampler(object):
     def sample_next(self,restaurant_idx):
         return self.meta_table_assignments[restaurant_idx][self.table_samplers[restaurant_idx].sample_next()]
 
+    def copy(self):
+        new = self.__new__(_CRFIndexSampler)
+        new.table_samplers = self.table_samplers.copy()
+        new.meta_table_sampler = self.meta_table_sampler.copy()
+        new.meta_table_assignments = self.meta_table_assignments.copy()
+        new.meta_table_assignments.default_factory = lambda: defaultdict(new.meta_table_sampler.sample_next)
+        return new
+
 
 class HDPHMMSampler(PredictiveModel):
     def __init__(self,alpha,gamma,obs_sampler_factory):
         self.state_sampler = _CRFIndexSampler(alpha,gamma)
         self.dishes = defaultdict(obs_sampler_factory)
         self.stateseq = []
-        self.track = []
 
     def sample_next(self,*args,**kwargs):
         cur_state = self.stateseq[-1] if len(self.stateseq) > 0 else 0
         self.stateseq.append(self.state_sampler.sample_next(cur_state))
-        self.track.append(self.dishes[self.stateseq[-1]].sample_next(out=self.out,*args,**kwargs))
-        return self.track[-1]
+        return self.dishes[self.stateseq[-1]].sample_next(out=self.out,*args,**kwargs)
+
+    def copy(self):
+        new = self.__new__(self.__class__)
+        new.state_sampler = self.state_sampler.copy()
+        new.dishes = defaultdict(self.dishes.default_factory,
+                ((s,o.copy()) for s,o in self.dishes.iteritems()))
+        new.stateseq = self.stateseq[:]
+        return new
 
 
 class HDPHSMMSampler(HDPHMMSampler):
@@ -111,9 +142,14 @@ class HDPHSMMSampler(HDPHMMSampler):
             cur_state = self.stateseq[-1] if len(self.stateseq) > 0 else 0
             self.stateseq.append(self.state_sampler.sample_next(cur_state))
             self.dur_counter = self.dur_dishes[self.stateseq[-1]].sample_next() - 1
-        self.track.append(self.dishes[self.stateseq[-1]].sample_next(*args,**kwargs))
-        return self.track[-1]
+        return self.dishes[self.stateseq[-1]].sample_next(*args,**kwargs)
 
+    def copy(self):
+        new = super(HDPHSMMSampler,self).copy()
+        new.dur_dishes = defaultdict(self.dur_dishes.default_factory,
+                ((s,d.copy()) for s,d in self.dur_dishes.iteritems()))
+        new.dur_counter = self.dur_counter
+        return new
 
 ### classes below are for ruling out self-transitions and probably need updating
 
