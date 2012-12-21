@@ -7,11 +7,17 @@ import predictive_models
 import predictive_distributions as d
 
 nlags = 2
+# MNIWARparams = (
+#             2.5,5,
+#             10*np.eye(2),
+#             np.hstack((0.5*np.eye(2),np.zeros((2,(nlags-1)*2)),np.zeros((2,1)))),
+#             np.diag((10.,)*(2*nlags) + (10.,))
+#             )
 MNIWARparams = (
-            2.5,5,
-            10*np.eye(2),
-            np.hstack((0.5*np.eye(2),np.zeros((2,(nlags-1)*2)),np.zeros((2,1)))),
-            np.diag((10.,)*(2*nlags) + (10.,))
+            4,6,
+            2.5*np.eye(2),
+            np.zeros((2,2*nlags+1)),
+            np.diag((1.,)*(2*nlags) + (1.,))
             )
 
 a = predictive_models.AR(

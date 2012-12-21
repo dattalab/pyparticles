@@ -1,9 +1,8 @@
 # TODO #
-* numerical stability; how does sigma\_n become non-symmetric?
-* AR pass getitem
-* draw tracked trajectories! store with particle (track), include states, draw 5
-  most probable
-    - is it getting the state labeling correct? all else is gravy
+* test parameters more, is rescaling not correct?
+* slippery
+* numerical stability; how does sigma\_n become non-symmetric? normalize!
+* particle printing
 * GPU implementation of naive momentum particles
 
 # Thinking #

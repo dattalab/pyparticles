@@ -8,15 +8,15 @@ import predictive_models as pm
 import predictive_distributions as pd
 import particle_filter as pf
 
-COLORS = ['r','g','b','y','k']
+COLORS = ['r','g','y','c','m','k']
 
 def interactive():
     nlags = 2
     MNIWARparams = (
-                2.5,5,
-                10*np.eye(2),
-                np.hstack((0.5*np.eye(2),np.zeros((2,(nlags-1)*2)),np.zeros((2,1)))),
-                np.diag((10.,)*(2*nlags) + (10.,))
+                4,6,
+                2.5*np.eye(2),
+                np.zeros((2,2*nlags+1)),
+                np.diag((1.,)*(2*nlags) + (1.,))
                 )
 
     particle_factory = lambda: \
@@ -73,6 +73,7 @@ def interactive():
                 stateseq = np.array(p.stateseq)
                 for i in range(len(set(stateseq))):
                     plt.plot(t[stateseq == i,0],t[stateseq == i,1],COLORS[i % len(COLORS)] + 'o')
+                print p
 
             # meanpt = (particlefilter.weights_norm[:,na] * particlefilter.locs).sum(0)
             # plt.plot(meanpt[0],meanpt[1],'rx')
