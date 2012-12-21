@@ -13,8 +13,8 @@ COLORS = ['r','g','c','m','k']
 def interactive():
     nlags = 2
     MNIWARparams = (
-                4,6,
-                5*np.eye(2),
+                3,6,
+                10*np.eye(2),
                 np.zeros((2,2*nlags+1)),
                 np.diag((1.,)*(2*nlags) + (0.01,))
                 )
@@ -26,7 +26,7 @@ def interactive():
                             pm.HDPHSMMSampler(
                                 alpha=3.,gamma=4.,
                                 obs_sampler_factory=lambda: pd.MNIWAR(*MNIWARparams),
-                                dur_sampler_factory=lambda: pd.Poisson(5*10,5),
+                                dur_sampler_factory=lambda: pd.Poisson(5*2,2),
                                 )
                     )
 
@@ -89,3 +89,5 @@ def interactive():
             plt.ion()
 
     return particlefilter
+
+# TODO synthetic

@@ -1,7 +1,7 @@
 # TODO #
-* test parameters more, is rescaling not correct?
+* synthetic test
+* profile
 * slippery
-* numerical stability; how does sigma\_n become non-symmetric? normalize!
 * particle printing
 * GPU implementation of naive momentum particles
 * Gibbs messages in pyhsmm!
