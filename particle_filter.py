@@ -1,8 +1,6 @@
 from __future__ import division
 import numpy as np
 
-# TODO particle wrapper to remember trace
-
 class ParticleFilter(object):
     def __init__(self,dim,n_particles,cutoff,log_likelihood_fn,particle_factory):
         self.particles = [particle_factory() for idx in range(n_particles)]

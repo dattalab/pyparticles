@@ -4,6 +4,7 @@
 * numerical stability; how does sigma\_n become non-symmetric? normalize!
 * particle printing
 * GPU implementation of naive momentum particles
+* Gibbs messages in pyhsmm!
 
 # Thinking #
 * Options to try
