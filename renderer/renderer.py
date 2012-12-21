@@ -441,7 +441,7 @@ class MouseScene(object):
 		glutCreateWindow('Mouse Model')
 
 		glutKeyboardFunc(self.on_keypress)
-		# glutMotionFunc(self.on_motion)
+		glutMotionFunc(self.on_motion)
 		glutDisplayFunc(self.display)
 		# glutReshapeFunc(self.on_reshape)
 		if not self.useFramebuffer:
