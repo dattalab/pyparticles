@@ -1,4 +1,5 @@
 # TODO #
+* make parameters reasonable
 * memoize cholesky for invwishart!
 * profile
 * concentration GS on smart particles
