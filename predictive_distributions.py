@@ -3,7 +3,7 @@ import numpy as np
 na = np.newaxis
 import abc
 
-from util.stats import sample_mniw
+from util.stats import sample_mniw, sample_invwishart
 
 '''predictive samplers for basic distributions'''
 
@@ -54,12 +54,37 @@ class NegativeBinomial(PredictiveDistribution): # TODO
 #  Observations  #
 ##################
 
+class InverseWishartNoise(PredictiveDistribution):
+    def __init__(self,n_0,S_0):
+        self.S_n = S_0.copy()
+        self.n_n = n_0
+
+    def _update_hypparams(self,y):
+        self.n_n += 1
+        self.S_n += y[:,na] * y
+
+    def _sample(self):
+        Sigma = sample_invwishart(self.S_n,self.n_n)
+        return np.linalg.cholesky(Sigma).dot(np.random.randn(Sigma.shape[0]))
+
+    def copy(self):
+        new = self.__new__(self.__class__)
+        new.n_n = self.n_n
+        new.S_n = self.S_n.copy()
+        return new
+
+    def __str__(self):
+        return str((self.n_n,self.S_n))
+
+    def __repr__(self):
+        return str(self)
+
+
 class MNIWAR(PredictiveDistribution):
     '''Conjugate Matrix-Normal-Inverse-Wishart prior'''
-    def __init__(self,n_0,kappa_0,sigma_0,M,K):
+    def __init__(self,n_0,sigma_0,M,K):
         # hyperparameters
         self.n = n_0
-        self.kappa_n = kappa_0
         self.sigma_0 = sigma_0
         self.M_n = M
         self.K_n = K
@@ -89,7 +114,6 @@ class MNIWAR(PredictiveDistribution):
         self.Sy_yt += self.Syy
 
         self.n += 1
-        self.kappa_n += 1
         np.add(self.Sy_yt,self.sigma_0,out=self.sigma_n)
         self.M_n = M_n
         self.K_n = self.Sytyt
@@ -106,7 +130,7 @@ class MNIWAR(PredictiveDistribution):
         if not self._broken:
             try:
                 ylags = self._pad_ylags(lagged_outputs)
-                A,sigma = sample_mniw(self.n,self.kappa_n,self.sigma_n,self.M_n,np.linalg.inv(self.K_n))
+                A,sigma = sample_mniw(self.n,self.sigma_n,self.M_n,np.linalg.inv(self.K_n))
                 return A.dot(ylags) + np.linalg.cholesky(sigma).dot(np.random.randn(sigma.shape[0]))
             except np.linalg.LinAlgError:
                 print 'WARNING: particle broke'
@@ -131,7 +155,6 @@ class MNIWAR(PredictiveDistribution):
     def copy(self):
         new = self.__new__(self.__class__)
         new.n = self.n
-        new.kappa_n = self.kappa_n
         new.sigma_0 = self.sigma_0
         new.sigma_n = self.sigma_n.copy()
         new.M_n = self.M_n
@@ -144,6 +167,12 @@ class MNIWAR(PredictiveDistribution):
         new._broken = self._broken
         return new
 
+    def __str__(self):
+        return '\n'.join(map(str,sample_mniw(self.n,self.sigma_n,self.M_n,np.linalg.inv(self.K_n))))
+
+    def __repr__(self):
+        return str(self)
+
 
 class NIWNonConjAR(PredictiveDistribution): # TODO
     # Gibbs steps on copy
@@ -154,7 +183,7 @@ class NIWNonConjAR(PredictiveDistribution): # TODO
     pass
 
 
-class _InverseWishart(object):
+class _InvWishartCov(object):
     pass
 
 

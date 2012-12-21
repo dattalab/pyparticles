@@ -38,6 +38,9 @@ class IID(PredictiveModel):
     def __getattr__(self,name):
         return getattr(self.sampler,name)
 
+    def __str__(self):
+        return '%s(%s)' % (self.__class__.__name__,self.sampler.__str__())
+
     def copy(self):
         new = self.__new__(self.__class__)
         new.track = self.track[:]
@@ -46,9 +49,10 @@ class IID(PredictiveModel):
 
 
 class AR(IID):
-    def __init__(self,numlags,baseclass):
+    def __init__(self,numlags,initial_obs,baseclass):
+        assert len(initial_obs) == numlags
         super(AR,self).__init__(baseclass)
-        self.lagged_outputs = deque(maxlen=numlags)
+        self.lagged_outputs = deque(initial_obs,maxlen=numlags)
 
     def sample_next(self):
         out = self.sampler.sample_next(lagged_outputs=self.lagged_outputs)
@@ -59,6 +63,40 @@ class AR(IID):
     def copy(self):
         new = super(AR,self).copy()
         new.lagged_outputs = self.lagged_outputs.__copy__()
+        return new
+
+
+###################
+#  'Dumb' models  #
+###################
+
+class RandomWalk(PredictiveModel):
+    def __init__(self,noiseclass):
+        self.noisesampler = noiseclass()
+
+    def sample_next(self,lagged_outputs):
+        y = lagged_outputs[0]
+        return y + self.noisesampler.sample_next()
+
+    def copy(self):
+        new = self.__new__(self.__class__)
+        new.noisesampler = self.noisesampler.copy()
+        return new
+
+
+class Momentum(PredictiveModel):
+    def __init__(self,propmatrix,noiseclass):
+        self.noisesampler = noiseclass()
+        self.propmatrix = propmatrix # np.hstack((2*np.eye(ndim),-1*np.eye(ndim)))
+
+    def sample_next(self,lagged_outputs):
+        ys = np.concatenate(lagged_outputs)
+        return self.propmatrix.dot(ys) + self.noisesampler.sample_next()
+
+    def copy(self):
+        new = self.__new__(self.__class__)
+        new.noisesampler = self.noisesampler.copy()
+        new.propmatrix = self.propmatrix
         return new
 
 
@@ -101,7 +139,8 @@ class _CRFIndexSampler(object):
 
     def copy(self):
         new = self.__new__(_CRFIndexSampler)
-        new.table_samplers = self.table_samplers.copy()
+        new.table_samplers = defaultdict(self.table_samplers.default_factory,
+                ((s,t.copy()) for s,t in self.table_samplers.iteritems()))
         new.meta_table_sampler = self.meta_table_sampler.copy()
         new.meta_table_assignments = self.meta_table_assignments.copy()
         new.meta_table_assignments.default_factory = lambda: defaultdict(new.meta_table_sampler.sample_next)
@@ -117,7 +156,7 @@ class HDPHMMSampler(PredictiveModel):
     def sample_next(self,*args,**kwargs):
         cur_state = self.stateseq[-1] if len(self.stateseq) > 0 else 0
         self.stateseq.append(self.state_sampler.sample_next(cur_state))
-        return self.dishes[self.stateseq[-1]].sample_next(out=self.out,*args,**kwargs)
+        return self.dishes[self.stateseq[-1]].sample_next(*args,**kwargs)
 
     def copy(self):
         new = self.__new__(self.__class__)
@@ -126,6 +165,11 @@ class HDPHMMSampler(PredictiveModel):
                 ((s,o.copy()) for s,o in self.dishes.iteritems()))
         new.stateseq = self.stateseq[:]
         return new
+
+    def __str__(self):
+        dishstr = '\n'.join('%d:\n%s\n' % (idx,self.dishes[idx])
+                for idx in range(len(self.dishes)))
+        return '%s(%s)\n%s\n' % (self.__class__.__name__,self.stateseq,dishstr)
 
 
 class HDPHSMMSampler(HDPHMMSampler):
@@ -151,7 +195,7 @@ class HDPHSMMSampler(HDPHMMSampler):
         new.dur_counter = self.dur_counter
         return new
 
-### classes below are for ruling out self-transitions and probably need updating
+### classes below are for ruling out self-transitions and NEED UPDATING
 
 class _CRPIndexSamplerTaboo(_CRPIndexSampler):
     def __init__(self,alpha):

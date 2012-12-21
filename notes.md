@@ -1,8 +1,8 @@
 # TODO #
+* memoize cholesky for invwishart
 * synthetic test
 * profile
-* slippery
-* particle printing
+* concentration GS
 * GPU implementation of naive momentum particles
 * Gibbs messages in pyhsmm!
 
