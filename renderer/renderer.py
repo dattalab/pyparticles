@@ -316,11 +316,11 @@ class MouseScene(object):
 		self.data = data
 		self.likelihood = likelihood
 		self.diffmap = this_diff
-		np.savez("data/frame.npz", \
-						frame=data, \
-						diffmap=this_diff, \
-						likelihood = likelihood,
-						mouse_img = self.mouse_img)
+		# np.savez("data/frame.npz", \
+		# 				frame=data, \
+		# 				diffmap=this_diff, \
+		# 				likelihood = likelihood,
+		# 				mouse_img = self.mouse_img)
 
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0)
@@ -478,6 +478,27 @@ def get_likelihood(particle_data, mouse_image, mousescene, likelihood_array=None
 	"""
 
 	num_particles, num_vars = particle_data.shape
+	width, height = mouse_image.shape
+
+	if likelihood_array == None:
+		likelihood_array = np.zeros((num_particles,), dtype='float32')
+
+	# Here we extract the parameters from the particle_data, 
+	# as we think they should be sitting.
+	# So, right now, that's 
+	# - offsetx
+	# - offsety
+	# - body angle
+	# and for each of 9 joints,
+	# {
+	# 	- vertical rotation from rest
+	#	- horizontal rotation from rest
+	# }
+
+	offsetx, offsety = particle_data[:,0], particle_data[:,1]
+	body_angle = particle_data[:,2]
+
+	
 
 
 if __name__ == '__main__':
