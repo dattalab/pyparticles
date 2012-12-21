@@ -9,14 +9,9 @@ from OpenGL.arrays import vbo
 from OpenGL.GL.ARB.draw_instanced import *
 from OpenGL.GL.ARB.texture_buffer_object import *
 from OpenGL.GL.framebufferobjects import *
-from pylab import *
 
-sys.path.append("/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/")
 import transformations as tr
-
 import time
-
-sys.path.append("/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Playground")
 import Joints
 
 class MouseScene(object):
@@ -486,7 +481,7 @@ def get_likelihood(particle_data, mouse_image, mousescene, likelihood_array=None
 
 
 if __name__ == '__main__':
-	scenefile = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Models/mouse_mesh_low_poly.npz"
+	scenefile = "data/mouse_mesh_low_poly.npz"
 	useFramebuffer = False
 	ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
 								scale = 2.5, \
