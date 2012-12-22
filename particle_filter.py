@@ -10,9 +10,9 @@ class ParticleFilter(object):
         self.log_likelihood_fn = log_likelihood_fn
         self.cutoff = cutoff
 
-    def step(self,data):
+    def step(self,data,*args,**kwargs):
         for idx, particle in enumerate(self.particles):
-            self.locs[idx] = particle.sample_next()
+            self.locs[idx] = particle.sample_next(*args,**kwargs)
         self.log_weights += self.log_likelihood_fn(self.locs,data)
 
         if self._Neff() < self.cutoff:

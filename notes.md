@@ -1,10 +1,11 @@
 # TODO #
-* make parameters reasonable
+* data-dependent particles
 * memoize cholesky for invwishart!
 * profile
 * concentration GS on smart particles
 
 * GPU implementation of naive momentum particles
+
 * Gibbs messages in pyhsmm!
 
 # Thinking #

@@ -31,8 +31,8 @@ class IID(PredictiveModel):
         self.sampler = baseclass()
         self.track = []
 
-    def sample_next(self):
-        self.track.append(self.sampler.sample_next())
+    def sample_next(self,*args,**kwargs):
+        self.track.append(self.sampler.sample_next(*args,**kwargs))
         return self.track[-1]
 
     def __getattr__(self,name):
@@ -54,8 +54,8 @@ class AR(IID):
         super(AR,self).__init__(baseclass)
         self.lagged_outputs = deque(initial_obs,maxlen=numlags)
 
-    def sample_next(self):
-        out = self.sampler.sample_next(lagged_outputs=self.lagged_outputs)
+    def sample_next(self,*args,**kwargs):
+        out = self.sampler.sample_next(lagged_outputs=self.lagged_outputs,*args,**kwargs)
         self.lagged_outputs.appendleft(out)
         self.track.append(out)
         return out
@@ -65,6 +65,25 @@ class AR(IID):
         new.lagged_outputs = self.lagged_outputs.__copy__()
         return new
 
+
+##########
+#  Meta  #
+##########
+
+class Mixture(PredictiveModel):
+    def __init__(self,weights,components):
+        self.weights = weights
+        self.components = components
+
+    def sample_next(self,*args,**kwargs):
+        label = sample_discrete(self.weights)
+        return self.components[label].sample_next(*args,**kwargs)
+
+    def copy(self):
+        new = self.__new__(self.__class__)
+        new.weights = self.weights
+        new.components = [c.copy() for c in self.components]
+        return new
 
 ###################
 #  'Dumb' models  #
@@ -82,6 +101,13 @@ class RandomWalk(PredictiveModel):
         new = self.__new__(self.__class__)
         new.noisesampler = self.noisesampler.copy()
         return new
+
+
+class SideInfoRandomWalk(RandomWalk):
+    def sample_next(self,lagged_outputs,sideinfo):
+        y = lagged_outputs[0]
+        y[:sideinfo.shape[0]] = sideinfo
+        return y + self.noisesampler.sample_next()
 
 
 class Momentum(PredictiveModel):

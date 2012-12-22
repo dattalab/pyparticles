@@ -3,7 +3,7 @@ import numpy as np
 na = np.newaxis
 import abc
 
-from util.stats import sample_mniw, sample_invwishart
+from util.stats import sample_mniw, sample_invwishart, sample_discrete
 
 '''predictive samplers for basic distributions'''
 
