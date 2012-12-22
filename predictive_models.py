@@ -104,7 +104,7 @@ class RandomWalk(PredictiveModel):
 
 
 class SideInfoRandomWalk(RandomWalk):
-    def sample_next(self,lagged_outputs,sideinfo):
+    def sample_next(self,sideinfo,lagged_outputs):
         y = lagged_outputs[0]
         y[:sideinfo.shape[0]] = sideinfo
         return y + self.noisesampler.sample_next()

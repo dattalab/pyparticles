@@ -1,5 +1,4 @@
 # TODO #
-* data-dependent particles
 * memoize cholesky for invwishart!
 * profile
 * concentration GS on smart particles
