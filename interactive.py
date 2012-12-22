@@ -10,6 +10,12 @@ import particle_filter as pf
 
 COLORS = ['r','g','c','m','k']
 
+# TODO plot mean path in gray!
+
+##########################
+#  experiment functions  #
+##########################
+
 def smart():
     nlags = 2
     MNIWARparams = (
@@ -31,18 +37,36 @@ def smart():
                                 )
                     )
 
-    def plotfunc(p):
-        t = np.array(p.track)
-        plt.plot(t[:,0],t[:,1],'r-')
-        stateseq = np.array(p.stateseq)
-        for i in range(len(set(stateseq))):
-            plt.plot(t[stateseq == i,0],t[stateseq == i,1],COLORS[i % len(COLORS)] + 'o')
-        print p
+    def plotfunc(particles,weights):
+        for p in topk(particles,weights,5):
+            t = np.array(p.track)
+            plt.plot(t[:,0],t[:,1],'r-')
+            stateseq = np.array(p.stateseq)
+            for i in range(len(set(stateseq))):
+                plt.plot(t[stateseq == i,0],t[stateseq == i,1],COLORS[i % len(COLORS)] + 'o')
+            print p
 
-    interactive(2500,500,particle_factory,plotfunc)
+    return interactive(2500,500,particle_factory,plotfunc)
 
 
-def dumb_noise():
+def dumb_randomwalk_fixednoise():
+    noisechol = 20*np.eye(2)
+    particle_factory = lambda: \
+            pm.AR(
+                    numlags=1,
+                    initial_obs=[np.zeros(2)],
+                    baseclass=lambda: \
+                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol=noisechol))
+                    )
+
+    def plotfunc(particles,weights):
+        plottopk(particles,weights,5)
+        plotmeanpath(particles,weights)
+
+    return interactive(5000,2500,particle_factory,plotfunc)
+
+
+def dumb_randomwalk_learnednoise():
     particle_factory = lambda: \
             pm.AR(
                     numlags=1,
@@ -51,15 +75,34 @@ def dumb_noise():
                         pm.RandomWalk(noiseclass=lambda: pd.InverseWishartNoise(10,10*30*np.eye(2)))
                     )
 
-    def plotfunc(p):
-        t = np.array(p.track)
-        plt.plot(t[:,0],t[:,1],'rx-')
-        print p
+    def plotfunc(particles,weights):
+        plottopk(particles,weights,5)
+        plotmeanpath(particles,weights)
 
-    interactive(5000,2500,particle_factory,plotfunc)
+    return interactive(5000,2500,particle_factory,plotfunc)
 
 
-def dumb_momentum():
+def dumb_momentum_fixednoise():
+    propmatrix = np.hstack((2*np.eye(2),-1*np.eye(2)))
+    noisechol = 20*np.eye(2)
+    particle_factory = lambda: \
+            pm.AR(
+                    numlags=2,
+                    initial_obs=[np.zeros(2) for itr in range(2)],
+                    baseclass=lambda: \
+                            pm.Momentum(
+                                propmatrix=propmatrix,
+                                noiseclass=lambda: pd.FixedNoise(noisechol=noisechol))
+                    )
+
+    def plotfunc(particles,weights):
+        plottopk(particles,weights,5)
+        plotmeanpath(particles,weights)
+
+    return interactive(5000,2500,particle_factory,plotfunc)
+
+
+def dumb_momentum_learnednoise():
     propmatrix = np.hstack((2*np.eye(2),-1*np.eye(2)))
     invwishparams = (10,10.*30*np.eye(2))
     particle_factory = lambda: \
@@ -72,12 +115,10 @@ def dumb_momentum():
                             noiseclass=lambda: pd.InverseWishartNoise(*invwishparams))
                     )
 
-    def plotfunc(p):
-        t = np.array(p.track)
-        plt.plot(t[:,0],t[:,1],'rx-')
-        print p
+    def plotfunc(particles,weights):
+        plottopk(particles,weights,5)
 
-    interactive(10000,2500,particle_factory,plotfunc)
+    return interactive(5000,2500,particle_factory,plotfunc)
 
 
 def interactive(nparticles,cutoff,particle_factory,plotfunc):
@@ -94,7 +135,7 @@ def interactive(nparticles,cutoff,particle_factory,plotfunc):
     plt.ioff()
 
     pts = np.array(points)
-    plt.plot(pts[:,0],pts[:,1],'bx-')
+    plt.plot(pts[:,0],pts[:,1],'bo-')
     plt.xlim(-100,100)
     plt.ylim(-100,100)
     plt.draw()
@@ -114,11 +155,10 @@ def interactive(nparticles,cutoff,particle_factory,plotfunc):
 
             particlefilter.step(out)
 
-            for p in [particlefilter.particles[idx] for idx in np.argsort(particlefilter.weights_norm)[-5:]]:
-                plotfunc(p)
+            plotfunc(particlefilter.particles,particlefilter.weights_norm)
 
             pts = np.array(points)
-            plt.plot(pts[:,0],pts[:,1],'bo-')
+            plt.plot(pts[:,0],pts[:,1],'bo--')
 
             plt.xlim(-100,100)
             plt.ylim(-100,100)
@@ -127,6 +167,22 @@ def interactive(nparticles,cutoff,particle_factory,plotfunc):
 
     return particlefilter
 
-# TODO synthetic
+###########
+#  utils  #
+###########
 
+def topk(items,scores,k):
+    return [items[idx] for idx in np.argsort(scores)[:-(k+1):-1]]
+
+def plottopk(particles,weights,k):
+    for p in topk(particles,weights,k):
+        t = np.array(p.track)
+        plt.plot(t[:,0],t[:,1],'rx-')
+        print p
+
+def plotmeanpath(particles,weights):
+    track = np.array(particles[0].track)*weights[0,na]
+    for p,w in zip(particles[1:],weights[1:]):
+        track += np.array(p.track) * w
+    plt.plot(track[:,0],track[:,1],'k^:')
 

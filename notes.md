@@ -1,5 +1,6 @@
 # TODO #
-* memoize cholesky for invwishart!
+* fixed noise particle testing
+* synthetic testing
 * profile
 * concentration GS on smart particles
 
