@@ -92,8 +92,8 @@ class MouseScene(object):
 
 	def update_vertex_mesh(self):
 		self.vertices = self.skin.get_posed_vertices()[:,:3] # leave off the scale parameter
-		self.data[:,:3] = self.vertices[:,:3]
-		self.mesh_vbo[:] = self.data
+		self.vert_data[:,:3] = self.vertices
+		self.mesh_vbo[:] = self.vert_data
 
 	def setup_vbos(self):
 		"""Initialize a VBO with all-zero entries
@@ -113,7 +113,7 @@ class MouseScene(object):
 		num_elements_per_coord = self.vertices.shape[1]-1 + \
 									self.num_joint_influences + \
 									self.num_joint_influences		
-		data = np.zeros((self.num_vertices, num_elements_per_coord), dtype='float32')
+		vert_data = np.zeros((self.num_vertices, num_elements_per_coord), dtype='float32')
 
 		# Calculate the indices of the non-zero joint weights
 		joint_idx = np.zeros((self.num_vertices, self.num_joint_influences), dtype='int')
@@ -122,8 +122,8 @@ class MouseScene(object):
 			joint_idx[i,:] = np.argwhere(self.skin.joint_weights[i,:] > 0).ravel()
 			nonzero_joint_weights[i,:] = self.skin.joint_weights[i,joint_idx[i,:]]
 
-		self.data = np.hstack((self.vertices[:,:3], nonzero_joint_weights, joint_idx)).astype('float32')
-		self.mesh_vbo = vbo.VBO(self.data)
+		self.vert_data = np.hstack((self.vertices[:,:3], nonzero_joint_weights, joint_idx)).astype('float32')
+		self.mesh_vbo = vbo.VBO(self.vert_data)
 
 
 
@@ -222,17 +222,8 @@ class MouseScene(object):
 		self.mesh_vbo.bind()
 		self.index_vbo.bind()
 
-		# Bind our texture
-		# glEnable(GL_TEXTURE_2D)
-		# glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-		# glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-		# glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL)
-		# glBindTexture(GL_TEXTURE_2D, self.texture_id)
-
-
 		# Turn on our shaders
 		glUseProgram(self.shaderProgram)
-
 
 		# Draw the poly mesh
 		# ==============================
@@ -245,9 +236,6 @@ class MouseScene(object):
 		stride = (3 + self.num_joint_influences*2)*4
 		glEnableClientState(GL_VERTEX_ARRAY)
 		glVertexPointer(3, GL_FLOAT, stride, self.mesh_vbo)
-		# glVertexAttribPointer(self.position_location,
-		# 				3, GL_FLOAT, 
-		# 				False, stride, self.mesh_vbo)
 		glVertexAttribPointer(self.joint_weights_location,
 						4, GL_FLOAT, 
 						False, stride, self.mesh_vbo+3*4)
@@ -258,6 +246,13 @@ class MouseScene(object):
 		x = self.mouse_width*np.mod(np.arange(numCols*numRows),numCols)
 		y = self.mouse_height*np.floor_divide(np.arange(numCols*numRows), numCols)
 		scale_array = np.repeat(self.scale, numCols*numRows, axis=0)
+
+		joints = self.skin.jointChain.joints
+
+		self.rotations = np.array(numCols*numRows*[j.rotation.copy() for j in joints]).astype('float32')
+		
+		Bi = np.array([np.array(j.Bi.copy()) for j in joints]).astype('float32')
+		glUniformMatrix4fv(self.bindingMatrixInverse_location, self.num_bones, True, Bi)
 
 		jointBindingMatrix = []
 		for i in range(numCols*numRows):
@@ -274,13 +269,12 @@ class MouseScene(object):
 			self.skin.jointChain.joints[ajoint].rotation[2] -= vert_deg
 			self.skin.jointChain.solve_forward(ajoint)
 
-
 		for i in range(numCols*numRows):
 			glUniform1f(self.offsetx_location, x[i])
 			glUniform1f(self.offsety_location, y[i])
 			glUniform1f(self.scale_location, scale_array[i])
-			glUniform2f(self.mouse_img_size_location, self.mouse_width, self.mouse_height)
-			glUniformMatrix4fv(self.joints_location,self.num_bones, True, jointBindingMatrix[i])
+			# glUniform3fv(self.rotation_location, self.num_bones, self.rotations[i])
+			glUniformMatrix4fv(self.joints_location, self.num_bones, True, jointBindingMatrix[i])
 			glDrawElements(GL_TRIANGLES, self.num_indices, GL_UNSIGNED_SHORT, self.index_vbo)
 
 		self.mesh_vbo.unbind()
@@ -295,10 +289,6 @@ class MouseScene(object):
 
 		if not self.useFramebuffer:
 			glutSwapBuffers()
-
-		# Put that frame on the screen
-		# glutSwapBuffers()
-
 
 		# Uncomment this if you want to read the data off of the card
 		data = glReadPixels(0,0,self.width,self.height, GL_RGB, GL_FLOAT)
@@ -323,8 +313,6 @@ class MouseScene(object):
 		# 				mouse_img = self.mouse_img)
 
 
-		glBindFramebuffer(GL_FRAMEBUFFER, 0)
-
 		if self.useFramebuffer:
 			glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
@@ -340,27 +328,94 @@ class MouseScene(object):
 		uniform float offsetx;
 		uniform float offsety;
 		uniform float scale;
+
+		// uniform vec3 rotation[9]; // rotations on each joint
+		// uniform vec3 translation[9]; // translations of each joint from the previous
 		uniform mat4 joints[9]; // currently have 9 bones
+		uniform mat4 bindingMatrixInverse[9]; // the inverse binding matrix
 		attribute vec4 joint_weights;
 		attribute vec4 joint_indices;
 
 		uniform sampler2D mouse_texture;
+
+		mat4 lastJointWorldMatrix;
+		mat4 jointWorldMatrix;
+		mat4 posingMatrix[9];
+		mat4 localRotation;
+
+		mat4 calcLocalRotation(in vec3 rotation, in vec3 translation) {
+
+			rotation = radians(-rotation);
+			vec3 cosrot = cos(rotation);
+			vec3 sinrot = sin(rotation);
+			mat3 Rx = mat3(1.0);
+			mat3 Ry = mat3(1.0);
+			mat3 Rz = mat3(1.0);
+
+			Rx[1].y = cosrot.x;
+			Rx[1].z = -sinrot.x;
+			Rx[2].y = sinrot.x;
+			Rx[2].z = cosrot.x;
+
+			Rx[0].x = cosrot.y;
+			Rx[0].z = sinrot.y;
+			Rx[2].x = -sinrot.y;
+			Rx[2].z = cosrot.y;
+
+			Rx[0].x = cosrot.z;
+			Rx[0].y = -sinrot.z;
+			Rx[2].x = sinrot.z;
+			Rx[2].y = cosrot.z;
+
+			mat3 T = Rz*Ry*Rx;
+			mat4 Tout;
+			Tout[0].xyz = T[0].xyz;
+			Tout[1].xyz = T[1].xyz;
+			Tout[2].xyz = T[2].xyz;
+			Tout[3].xyz = translation.xyz;
+
+			return Tout;
+		}
+		
 		void main()
 		{	
-			vec4 vertex;
-			int index;
+			// vec4 vertex = vec4(0.0);
+			// int index;
+			// 
+			// For each joint
+			// 1. calculate its local rotation matrix
+			// 2. calculate its world position from the previous joint's world matrix
+			// 3. multiply its inverse binding matrix into its world matrix as the posing matrix
+			// 4. multiply the posing matrix into the vertex
+			//
+			// lastJointWorldMatrix = mat4(1.0);
+			// 
+			// for (int i=0; i < 9; ++i) {
+			// 	// Calculate a joint's local rotation matrix
+			// 	// localRotation = calcLocalRotation(rotation[i], translation[i]);
+			// 	localRotation = mat4(1.0);
+			// 
+			// 	// Calculate its world position
+			// 	jointWorldMatrix = localRotation*lastJointWorldMatrix;
+			// 	
+			// 	// Multiply the inverse binding matrix into the world matrix
+			// 	posingMatrix[i] = bindingMatrixInverse[i] * jointWorldMatrix;
+			// 
+			// 	// Get ready for the next iteration
+			// 	lastJointWorldMatrix = jointWorldMatrix;
+			// 
+			// }
 
-			vertex = vec4(0., 0., 0., 0.0);
-			
-			index = int(joint_indices[0]);
-			vertex += joint_weights[0] * gl_Vertex * joints[index];
-			index = int(joint_indices[1]);
-			vertex += joint_weights[1] * gl_Vertex * joints[index];
-			index = int(joint_indices[2]);
-			vertex += joint_weights[2] * gl_Vertex * joints[index];
+
+			// Calculate a joint's local rotation matrix
+			vec4 vertex = vec4(0.0);
+			int index;
+			for (int i=0; i < 3; ++i) {
+				index = int(joint_indices[i]);
+				vertex += joint_weights[i] * gl_Vertex * joints[index];			
+			}
 
 			vertex.xyz *= scale;
-
 			vertex[0] = vertex[0]+offsetx;
 			vertex[2] = vertex[2]+offsety;
 
@@ -369,7 +424,6 @@ class MouseScene(object):
 
 			// Pass on the vertex color 
 			float the_color = (vertex[1]/(7.0*scale))*0.8 + 0.2;
-			// vertex_color = vec4(joint_weights.wzy, 1.0);
 			vertex_color = vec4(the_color, the_color, the_color, 1.0);
 
 		}
@@ -378,30 +432,44 @@ class MouseScene(object):
 		
 		fragmentShader = shaders.compileShader("""
 		varying vec4 vertex_color;
-		uniform sampler2D mouse_tex;
-		uniform vec2 mouse_img_size;
 
 		void main() {
-			vec2 position = gl_FragCoord.xy / mouse_img_size.xy;
-			gl_FragColor = vertex_color;// + texture2D(mouse_tex, position);
+			gl_FragColor = vertex_color;
 		}
 
 		""", GL_FRAGMENT_SHADER)
 
 		self.shaderProgram = shaders.compileProgram(vertexShader, fragmentShader)
 
-		# Now, let's make sure our uniform value will be sent 
-		self.scale_location = glGetUniformLocation(self.shaderProgram, 'scale')
-		self.offsetx_location = glGetUniformLocation(self.shaderProgram, 'offsetx')
-		self.offsety_location = glGetUniformLocation(self.shaderProgram, 'offsety')
-		self.joint_weights_location = glGetAttribLocation(self.shaderProgram, 'joint_weights')
-		self.joint_indices_location = glGetAttribLocation(self.shaderProgram, 'joint_indices')
-		self.joints_location = glGetUniformLocation(self.shaderProgram, "joints")
-		self.mouse_img_size_location = glGetUniformLocation(self.shaderProgram, "mouse_img_size")
+		# Now, let's make sure our uniform and attribute value value will be sent 
+		for uniform in ['joints', 'scale', 'offsetx', 'offsety', 'rotation', 'translation', 'bindingMatrixInverse']:
+			location = glGetUniformLocation(self.shaderProgram, uniform)
+			name = uniform+"_location"
+			setattr(self, uniform+"_location", location)
+		for attribute in ['joint_weights', 'joint_indices']:
+			location = glGetAttribLocation(self.shaderProgram, attribute)
+			setattr(self, attribute+"_location", location)
+
+		# Uploading the binding matrices
+		glUseProgram(self.shaderProgram)
+		joints = self.skin.jointChain.joints
+		Bi = np.array([np.array(j.Bi.copy()) for j in joints]).astype('float32')
+		glUniformMatrix4fv(self.bindingMatrixInverse_location, self.num_bones, True, Bi)
+
+		# Uploading joint translations (these stay fixed)
+		self.translations = np.array([j.translation.copy() for j in joints]).astype('float32')
+		glUniform3fv(self.translation_location, self.num_bones, self.translations)
+
+		glUseProgram(0)
+
 
 	def setup_texture(self):
+		import Image
+
 		f = np.load("data/meanmouse.npz")
 		self.mouse_img = f['mouse_img'].astype('float32')
+		I = Image.fromarray(self.mouse_img)
+		self.mouse_img = np.array(I.resize((self.mouse_width, self.mouse_height)))
 		width,height = self.mouse_img.shape
 		img_for_texture = self.mouse_img[:,:].ravel()
 		img_for_texture = np.repeat(img_for_texture, 3)
@@ -419,12 +487,6 @@ class MouseScene(object):
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, self.width, self.height)
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.renderBuffer)
 
-		# self.img = glGenTextures(1)
-		# glBindTexture(GL_TEXTURE_2D, self.img)
-		# glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-		# glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-		# glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, self.width, self.height, 0, GL_RGB, GL_FLOAT, None)
-
 		color = glGenRenderbuffers(1)
 		glBindRenderbuffer( GL_RENDERBUFFER, color )
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, self.width, self.height)
@@ -441,9 +503,8 @@ class MouseScene(object):
 		glutCreateWindow('Mouse Model')
 
 		glutKeyboardFunc(self.on_keypress)
-		# glutMotionFunc(self.on_motion)
+		glutMotionFunc(self.on_motion)
 		glutDisplayFunc(self.display)
-		# glutReshapeFunc(self.on_reshape)
 		if not self.useFramebuffer:
 			glutIdleFunc(self.display)
 		
@@ -455,7 +516,6 @@ class MouseScene(object):
 		glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
 		glLineWidth(3.5)
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-
 
 		# Setup our VBOs and shaders
 		self.setup_vbos()
@@ -498,7 +558,8 @@ def get_likelihood(particle_data, mouse_image, mousescene, likelihood_array=None
 	offsetx, offsety = particle_data[:,0], particle_data[:,1]
 	body_angle = particle_data[:,2]
 
-	
+	mousescene.rotations = particle_data[:,]
+
 
 
 if __name__ == '__main__':
