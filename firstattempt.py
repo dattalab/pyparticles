@@ -6,7 +6,7 @@ import predictive_models as pm
 import predictive_distributions as pd
 import particle_filter as pf
 
-def run(nparticles,cutoff):
+def run_momentum_fixednoise(nparticles,cutoff):
     # make mouse opengl object, pull out likelihood function
     likelihood = None
 
@@ -18,7 +18,7 @@ def run(nparticles,cutoff):
 
     # set up particle business
     propmatrix = np.hstack((2*np.eye(19),-1*np.eye(19)))
-    invwishparams = (20,20*np.diag( (5.,5.,45.,) + (45.,)*16 )**2)
+    noisechol = np.diag( (5.,5.,45.,) + (45.,)*16 )**2
     particle_factory = lambda: \
             pm.AR(
                     numlags=2,
@@ -26,7 +26,7 @@ def run(nparticles,cutoff):
                     baseclass=lambda: \
                             pm.momentum(
                                 propmatrix=propmatrix,
-                                noiseclass=lambda:pd.InverseWishartNoise(*invwishparams)
+                                noiseclass=lambda:pd.FixedNoise(noisechol)
                             )
                     )
 
@@ -37,7 +37,7 @@ def run(nparticles,cutoff):
     # TODO
 
 
-def run_sideinfo(nparticles,cutoff):
+def run_momentum_fixednoise_sideinfo(nparticles,cutoff):
     invwishparams = (20,20*np.diag( (20.,20.,5.,) + (45.,)*16 )**2) # TODO mixture
     # TODO get tracked x,y,theta for data-dependent version
     pass
