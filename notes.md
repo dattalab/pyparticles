@@ -1,12 +1,15 @@
 # TODO #
-* fixed noise particle testing
-* synthetic testing
+* ipyton parallel
+* synthetic 19D testing
 * profile
-* concentration GS on smart particles
+* hdp concentration GS on smart particles
 
 * GPU implementation of naive momentum particles
 
 * Gibbs messages in pyhsmm!
+    - two variants of VAR: standard and latent prefixes on switch
+    - for standard, just give obs_distns a ref to data and let pyhsmm pass in
+      indices, then slicify them
 
 # Thinking #
 * Options to try
