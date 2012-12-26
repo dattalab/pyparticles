@@ -67,8 +67,9 @@ class MouseScene(object):
 				self.rotations[i,j,:] = joint_rotations[j]
 
 		# Create rotation angles for each 
-		self.angles = np.zeros((self.num_mice,), dtype='float32')
-
+		self.offset_theta = np.zeros((self.num_mice,), dtype='float32')
+		self.offset_x = np.zeros((self.num_mice,), dtype='float32')
+		self.offset_y = np.zeros((self.num_mice,), dtype='float32')
 
 
 		# Load up the joints properly into a joint chain
@@ -192,7 +193,6 @@ class MouseScene(object):
 		numCols = self.numCols
 		numRows = self.numRows
 
-
 		# Timing
 		thistime = time.time()
 		this_rate = 1.0/(thistime - self.lasttime)
@@ -203,7 +203,6 @@ class MouseScene(object):
 
 		if self.useFramebuffer:
 			glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
-
 
 		# Drawing preparation (view angle adjustment, mostly)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -264,8 +263,9 @@ class MouseScene(object):
 						4, GL_FLOAT, 
 						False, stride, self.mesh_vbo+3*4+self.num_joint_influences*4)
 
-		x = self.mouse_width*np.mod(np.arange(numCols*numRows),numCols)
-		y = self.mouse_height*np.floor_divide(np.arange(numCols*numRows), numCols)
+		x = self.mouse_width*np.mod(np.arange(numCols*numRows),numCols) + self.offset_x
+		y = self.mouse_height*np.floor_divide(np.arange(numCols*numRows), numCols) + self.offset_y
+		theta = self.offset_theta
 		scale_array = np.repeat(self.scale, numCols*numRows, axis=0)
 
 		joints = self.skin.jointChain.joints
@@ -292,10 +292,12 @@ class MouseScene(object):
 		for i in range(numCols*numRows):
 			glUniform1f(self.offsetx_location, x[i])
 			glUniform1f(self.offsety_location, y[i])
+			# glUniform1f(self.offsettheta_location, theta[i])
 			glUniform1f(self.scale_location, scale_array[i])
 			glUniformMatrix4fv(self.joints_location, self.num_bones, True, jointBindingMatrix[i])
+			glRotate(-theta[i], 0., 1., 0.)
 			glDrawElements(GL_TRIANGLES, self.num_indices, GL_UNSIGNED_SHORT, self.index_vbo)
-
+			glRotate(theta[i], 0., 1., 0.)
 		self.mesh_vbo.unbind()
 		self.index_vbo.unbind()
 		glDisableClientState(GL_VERTEX_ARRAY)
@@ -475,11 +477,15 @@ class MouseScene(object):
 		if self.useFramebuffer:
 			self.setup_fbo()
 
-	def get_likelihood(self, new_img, particle_data):
+	def get_likelihood(self, new_img, x, y, theta, particle_data):
 		"""Calculate the likelihood of a list of particles given a mouse mouse_image
 
 		particle_data - num_particles x num_variables
 		mouse_image - the current mouse image
+		x 			- the x position of the mouse
+		y 			- the y position of the mouse
+		theta		- the theta angle of the mouse
+
 		mousescene - an instance of MouseScene, which controls the rendering
 		likelihood_array (optional) - num_particles array 
 									(provide if you don't want a memory copy)
@@ -507,8 +513,9 @@ class MouseScene(object):
 		#	- horizontal rotation from rest
 		# }
 
-		offsetx, offsety = particle_data[:,0], particle_data[:,1]
-		body_angle = particle_data[:,2]
+		self.offset_x = particle_data[:,0] - x
+		self.offset_y = particle_data[:,1] - y
+		self.offset_theta = particle_data[:,2] - theta
 
 		# TODO: do something with the offsets and angles! 
 		# This is ridiculous, get to it, chop chop.
@@ -525,7 +532,7 @@ class MouseScene(object):
 
 def test_single_mouse():
 	path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
-	which_img = 731
+	which_img = 100
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
@@ -549,10 +556,10 @@ def test_single_mouse():
 	particle_data = np.zeros((num_particles, 3+9*3))
 
 	# Set the offsets
-	particle_data[1:,:2] = np.random.normal(scale=1, size=(num_particles-1, 2))
+	particle_data[1:,:2] = np.random.normal(scale=2, size=(num_particles-1, 2))
 
 	# Set the angles
-	particle_data[1:,2] = np.random.normal(scale=1, size=(num_particles-1,))
+	particle_data[1:,2] = np.random.normal(scale=2, size=(num_particles-1,))
 
 	particle_data[:,3::3] = rot[:,:,0]
 	particle_data[:,4::3] = rot[:,:,1]
@@ -563,7 +570,7 @@ def test_single_mouse():
 	# particle_data[:,7+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 	# particle_data[:,8+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 
-	likelihoods = ms.get_likelihood(image, particle_data)
+	likelihoods = ms.get_likelihood(image, x=0, y=0, theta=0, particle_data=particle_data)
 
 	# L = ms.likelihood.T.ravel()
 	particle_rotations = np.hstack((particle_data[:,4::3], particle_data[:,5::3]))
