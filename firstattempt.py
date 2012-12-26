@@ -2,16 +2,32 @@ from __future__ import division
 import numpy as np
 na = np.newaxis
 
+from renderer.load_data import load_behavior_data
+from renderer import MouseScene
+
 import predictive_models as pm
 import predictive_distributions as pd
 import particle_filter as pf
 
-def run_momentum_fixednoise(nparticles,cutoff):
-    # make mouse opengl object, pull out likelihood function
-    likelihood = None
+datapath = "/Users/mattjj/Dropbox/Test Data/"
+scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
 
+def run_momentum_fixednoise(cutoff):
     # load data
-    data = None
+    data = load_behavior_data(datapath,120,"images")
+    data = np.array([np.rot90(i) for i in data])
+    data /= 354.0;
+
+    # make mousescene object, pull out likelihood function
+    num_particles = 32**2
+    numCols = int(np.sqrt(num_particles))
+    numRows = numCols
+    ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
+            scale = 2.0, \
+            numCols=numCols, numRows=numRows, useFramebuffer=True)
+    ms.gl_init()
+
+    likelihood = ms.get_likelihood
 
     # get initial position
     initial_pos = None
@@ -31,10 +47,11 @@ def run_momentum_fixednoise(nparticles,cutoff):
                     )
 
     # create particle filter
-    pf.ParticleFilter(2,nparticles,cutoff,likelihood,particle_factory)
+    particlefilter = pf.ParticleFilter(2,num_particles,cutoff,likelihood,particle_factory)
 
     # loop!!!
-    # TODO
+    for f in range(120):
+        particlefilter.step(data[i])
 
 
 def run_momentum_fixednoise_sideinfo(nparticles,cutoff):

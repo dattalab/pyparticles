@@ -13,7 +13,7 @@ class ParticleFilter(object):
     def step(self,data,*args,**kwargs):
         for idx, particle in enumerate(self.particles):
             self.locs[idx] = particle.sample_next(*args,**kwargs)
-        self.log_weights += self.log_likelihood_fn(self.locs,data)
+        self.log_weights += self.log_likelihood_fn(data,self.locs)
 
         if self._Neff() < self.cutoff:
             print 'resampling'
