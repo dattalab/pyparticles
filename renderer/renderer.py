@@ -531,9 +531,11 @@ class MouseScene(object):
 		return self.likelihood.ravel()
 
 def test_single_mouse():
+	from load_data import load_behavior_data
+
 	path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
 	which_img = 100
-	from load_data import load_behavior_data
+	
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
 	image /= 354.0;
@@ -556,10 +558,12 @@ def test_single_mouse():
 	particle_data = np.zeros((num_particles, 3+9*3))
 
 	# Set the offsets
-	particle_data[1:,:2] = np.random.normal(scale=2, size=(num_particles-1, 2))
+	offset_val = 90
+	particle_data[:,:2] = offset_val + np.random.normal(scale=2, size=(num_particles, 2))
 
 	# Set the angles
-	particle_data[1:,2] = np.random.normal(scale=2, size=(num_particles-1,))
+	theta_val = 30
+	particle_data[:,2] = theta_val + np.random.normal(scale=2, size=(num_particles,))
 
 	particle_data[:,3::3] = rot[:,:,0]
 	particle_data[:,4::3] = rot[:,:,1]
@@ -570,7 +574,10 @@ def test_single_mouse():
 	# particle_data[:,7+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 	# particle_data[:,8+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 
-	likelihoods = ms.get_likelihood(image, x=0, y=0, theta=0, particle_data=particle_data)
+	likelihoods = ms.get_likelihood(image, \
+						x=offset_val, y=offset_val, \
+						theta=theta_val, \
+						particle_data=particle_data)
 
 	# L = ms.likelihood.T.ravel()
 	particle_rotations = np.hstack((particle_data[:,4::3], particle_data[:,5::3]))
