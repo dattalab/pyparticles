@@ -475,7 +475,7 @@ class MouseScene(object):
 		if self.useFramebuffer:
 			self.setup_fbo()
 
-	def get_likelihood(self, particle_data):
+	def get_likelihood(self, new_img, particle_data):
 		"""Calculate the likelihood of a list of particles given a mouse mouse_image
 
 		particle_data - num_particles x num_variables
@@ -490,9 +490,10 @@ class MouseScene(object):
 		# Set the number of mice
 		assert self.numCols*self.numRows == num_particles, "Number of mice much match particles"
 
+		assert new_img.shape == self.mouse_img.shape, \
+					"New image must be shape of old image (%d, %d)" % (self.mouse_width, self.mouse_height)
+		self.mouse_img =  new_img
 		width, height = self.mouse_img.shape
-
-
 
 		# Here we extract the parameters from the particle_data, 
 		# as we think they should be sitting.
@@ -509,19 +510,22 @@ class MouseScene(object):
 		offsetx, offsety = particle_data[:,0], particle_data[:,1]
 		body_angle = particle_data[:,2]
 
+		# TODO: do something with the offsets and angles! 
+		# This is ridiculous, get to it, chop chop.
+
 		rotations = particle_data[:,3:]
 		rotations = np.reshape(rotations, (num_particles, -1, 3))
 		self.rotations = rotations
 
-		# Display the mouse scene
+		# Display the mouse scene (or render to a framebuffer, alternatively)
 		self.display()
 
 		# Return the computed likelihoods
 		return self.likelihood.ravel()
 
-def go():
+def test_single_mouse():
 	path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
-	which_img = 732
+	which_img = 731
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
@@ -531,20 +535,15 @@ def go():
 	numCols = int(np.sqrt(num_particles))
 	numRows = numCols
 	scenefile = "data/mouse_mesh_low_poly.npz"
-	
 
 	useFramebuffer = True
 	ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
 								scale = 2.0, \
 								numCols=numCols, numRows=numRows, useFramebuffer=True)
 	ms.gl_init()
-	ms.mouse_img = image
 
-	rotations = np.load('better_rotations_for_731.npz')['rotations']
-	rotations = np.tile(rotations, (ms.num_mice, 1, 1))
-	# ms.set_joint_rotations(rotations)
+	# Get the base, unposed, rotations
 	rot = ms.get_joint_rotations().copy()
-
 
 	# Fill in some particle data
 	particle_data = np.zeros((num_particles, 3+9*3))
@@ -564,7 +563,7 @@ def go():
 	# particle_data[:,7+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 	# particle_data[:,8+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 
-	likelihoods = ms.get_likelihood(particle_data)
+	likelihoods = ms.get_likelihood(image, particle_data)
 
 	# L = ms.likelihood.T.ravel()
 	particle_rotations = np.hstack((particle_data[:,4::3], particle_data[:,5::3]))
@@ -625,7 +624,7 @@ if __name__ == '__main__':
 		ms.gl_init()
 		glutMainLoop()
 	else:
-		go()
+		test_single_mouse()
 		# for i in range(10):
 		# 	old_rotations = np.copy(ms.rotations)
 		# 	ms.rotations[:,:,1:] += np.random.normal(scale=10,
