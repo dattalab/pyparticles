@@ -69,7 +69,7 @@ class MouseScene(object):
 		# Create rotation angles for each 
 		self.angles = np.zeros((self.num_mice,), dtype='float32')
 
-		
+
 
 		# Load up the joints properly into a joint chain
 		jointChain = Joints.LinearJointChain()
@@ -475,55 +475,53 @@ class MouseScene(object):
 		if self.useFramebuffer:
 			self.setup_fbo()
 
+	def get_likelihood(self, particle_data):
+		"""Calculate the likelihood of a list of particles given a mouse mouse_image
+
+		particle_data - num_particles x num_variables
+		mouse_image - the current mouse image
+		mousescene - an instance of MouseScene, which controls the rendering
+		likelihood_array (optional) - num_particles array 
+									(provide if you don't want a memory copy)
+		"""
+
+		num_particles, num_vars = particle_data.shape
+
+		# Set the number of mice
+		assert self.numCols*self.numRows == num_particles, "Number of mice much match particles"
+
+		width, height = self.mouse_img.shape
 
 
-def get_likelihood(particle_data, mouse_img, mousescene):
-	"""Calculate the likelihood of a list of particles given a mouse mouse_image
 
-	particle_data - num_particles x num_variables
-	mouse_image - the current mouse image
-	mousescene - an instance of MouseScene, which controls the rendering
-	likelihood_array (optional) - num_particles array 
-								(provide if you don't want a memory copy)
-	"""
+		# Here we extract the parameters from the particle_data, 
+		# as we think they should be sitting.
+		# So, right now, that's 
+		# - offsetx
+		# - offsety
+		# - body angle
+		# and for each of 9 joints,
+		# {
+		# 	- vertical rotation from rest
+		#	- horizontal rotation from rest
+		# }
 
-	num_particles, num_vars = particle_data.shape
-	width, height = mouse_img.shape
+		offsetx, offsety = particle_data[:,0], particle_data[:,1]
+		body_angle = particle_data[:,2]
 
-	# Here we extract the parameters from the particle_data, 
-	# as we think they should be sitting.
-	# So, right now, that's 
-	# - offsetx
-	# - offsety
-	# - body angle
-	# and for each of 9 joints,
-	# {
-	# 	- vertical rotation from rest
-	#	- horizontal rotation from rest
-	# }
+		rotations = particle_data[:,3:]
+		rotations = np.reshape(rotations, (num_particles, -1, 3))
+		self.rotations = rotations
 
-	offsetx, offsety = particle_data[:,0], particle_data[:,1]
-	body_angle = particle_data[:,2]
+		# Display the mouse scene
+		self.display()
 
-	rotations = particle_data[:,3:]
-	rotations = np.reshape(rotations, (num_particles, -1, 3))
-	mousescene.rotations = rotations
-
-	# Store in the mouse image
-	mousescene.mouse_img = mouse_img
-
-	# Set the number of mice
-	assert mousescene.numCols*mousescene.numRows == num_particles, "Number of mice much match particles"
-
-	# Display the mouse scene
-	mousescene.display()
-
-	# Return the computed likelihoods
-	return mousescene.likelihood.ravel()
+		# Return the computed likelihoods
+		return self.likelihood.ravel()
 
 def go():
 	path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
-	which_img = 731
+	which_img = 732
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
@@ -566,7 +564,8 @@ def go():
 	# particle_data[:,7+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 	# particle_data[:,8+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 
-	likelihoods = get_likelihood(particle_data, ms.mouse_img, ms)
+	likelihoods = ms.get_likelihood(particle_data)
+
 	# L = ms.likelihood.T.ravel()
 	particle_rotations = np.hstack((particle_data[:,4::3], particle_data[:,5::3]))
 	real_rotations = np.hstack((rot[:,:,1], rot[:,:,2]))
@@ -595,6 +594,7 @@ def go():
 	idx = np.argsort(likelihoods)
 	fivebest = np.hstack(ms.posed_mice[idx[-5:]])
 	# Show first the raw mouse, then my hand-posed mouse, and then the five best poses
+	
 	figure()
 	title("Five best (best, far right)")
 	imshow(np.hstack((ms.mouse_img, ms.posed_mice[0], fivebest)))
