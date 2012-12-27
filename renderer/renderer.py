@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -327,7 +328,7 @@ class MouseScene(object):
 		self.likelihood = likelihood
 		self.diffmap = this_diff
 
-		np.savez("data/frame%d.npz"%self.iframe, \
+		np.savez(os.path.join(os.path.dirname(__file__),"data/frame%d.npz"%self.iframe), \
 						frame=data, \
 						diffmap=this_diff, \
 						likelihood = likelihood,
@@ -416,7 +417,7 @@ class MouseScene(object):
 	def setup_texture(self):
 		import Image
 
-		f = np.load("data/meanmouse.npz")
+		f = np.load(os.path.join(os.path.dirname(__file__),"data/meanmouse.npz"))
 		self.mouse_img = f['mouse_img'].astype('float32')
 		I = Image.fromarray(self.mouse_img)
 		self.mouse_img = np.array(I.resize((self.mouse_width, self.mouse_height)))
