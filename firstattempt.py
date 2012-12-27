@@ -12,7 +12,7 @@ import particle_filter as pf
 datapath = "/Users/mattjj/Dropbox/Test Data/"
 scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
 
-# this is exactly the same as the following, but more explicit and maybe more efficient
+# MyModel exactly the same as the following, but more explicit and maybe more efficient
 #   pm.Concatenation(
 #       components=(
 #           pm.SideInfo(noiseclass=lambda: pd.FixedNoise(xytheta_noisechol)),
@@ -31,7 +31,7 @@ class MyModel(object):
     def sample_next(self,sideinfo,lagged_outputs):
         return np.concatenate((
             self.xytheta_sampler.sample_next(sideinfo=sideinfo),
-            self.joints_sampler.sample_next(lagged_outputs=(lagged_outputs[0][2:]))
+            self.joints_sampler.sample_next(lagged_outputs=(lagged_outputs[0][3:],))
             ))
 
     def copy(self):
@@ -72,7 +72,7 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
 
     # set up particle business
     xytheta_noisechol = np.diag( (3.,3.,3.,) )**2
-    angles_noisechol = np.diag( (10.,)*(2*9) )**2
+    joints_noisechol = np.diag( (10.,)*(2*9) )**2
 
     initial_pose = np.empty(3+2*9)
     initial_pose[3::2] = rot[0,:,1]
@@ -82,13 +82,16 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
             pf.AR(
                     numlags=1,
                     previous_outputs=(initial_pose,),
-                    baseclass=lambda: MyModel(xytheta_noisechol, angles_noisechol)
+                    baseclass=lambda: MyModel(xytheta_noisechol, joints_noisechol)
             ) for itr in range(num_particles)]
 
     # create particle filter
     particlefilter = pf.ParticleFilter(3+2*9,cutoff,likelihood,initial_particles)
 
     # loop!!!
-    for i in range(120):
+    # for i in range(data.shape[0]):
+    for i in range(10):
         particlefilter.step(data[i],sideinfo=xytheta[i])
 
+if __name__ == '__main__':
+    run_randomwalk_fixednoise_sideinfo(500)

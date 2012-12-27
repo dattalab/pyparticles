@@ -3,3 +3,4 @@ util
 .DS_Store
 /temp*
 renderer/data/*
+/profile_out.txt
