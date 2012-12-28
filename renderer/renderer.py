@@ -21,7 +21,7 @@ class MouseScene(object):
 	as quickly as possible."""
 	def __init__(self, scenefile, scale = 4.0, \
 						mouse_width=640, mouse_height=480, \
-						numCols=1, numRows=1, useFramebuffer=False):
+						numCols=32, numRows=32, useFramebuffer=False, debug=False):
 
 		"""For a given scenefile (the output of 
 			get_poly_and_skin_info_maya.py), 
@@ -33,6 +33,11 @@ class MouseScene(object):
 		self.numCols = numCols
 		self.numRows = numRows
 		self.num_mice = self.numCols * self.numRows
+		self.debug = debug
+
+		assert np.mod(self.num_mice, 256) == 0, \
+			"Number of mice must be a multiple of 1024"
+
 		self.width = self.mouse_width*numCols
 		self.height = self.mouse_height*numRows
 		self.scale = scale
@@ -329,11 +334,12 @@ class MouseScene(object):
 		self.likelihood = likelihood
 		self.diffmap = this_diff
 
-		np.savez("data/frame%d.npz"%self.iframe, \
-						frame=data, \
-						diffmap=this_diff, \
-						likelihood = likelihood,
-						mouse_img = self.mouse_img)
+		if self.debug:
+			np.savez("data/frame%d.npz"%self.iframe, \
+							frame=data, \
+							diffmap=this_diff, \
+							likelihood = likelihood,
+							mouse_img = self.mouse_img)
 
 
 		if self.useFramebuffer:
@@ -477,7 +483,7 @@ class MouseScene(object):
 		if self.useFramebuffer:
 			self.setup_fbo()
 
-	def get_likelihood(self, new_img, x, y, theta, particle_data):
+	def get_likelihood(self, new_img, x, y, theta, particle_data, return_posed_mice=False):
 		"""Calculate the likelihood of a list of particles given a mouse mouse_image
 
 		particle_data - num_particles x num_variables
@@ -491,15 +497,20 @@ class MouseScene(object):
 									(provide if you don't want a memory copy)
 		"""
 
-		num_particles, num_vars = particle_data.shape
-
-		# Set the number of mice
-		assert self.numCols*self.numRows == num_particles, "Number of mice much match particles"
-
+		# Check the mouse image size
 		assert new_img.shape == self.mouse_img.shape, \
 					"New image must be shape of old image (%d, %d)" % (self.mouse_width, self.mouse_height)
 		self.mouse_img =  new_img
-		width, height = self.mouse_img.shape
+
+		# Check the number of particles (must be a multiple of num_mice)
+		num_particles, num_vars = particle_data.shape
+		assert np.mod(num_particles, self.num_mice) == 0, \
+					"Number of particles must be a multiple of the number of mice (%d)" % (self.num_mice)
+
+		# If we have more particles than mice, 
+		# we'll have to do multiple rendering passes to get all the likelihoods
+		num_passes = int(num_particles / self.num_mice)
+
 
 		# Here we extract the parameters from the particle_data, 
 		# as we think they should be sitting.
@@ -512,37 +523,53 @@ class MouseScene(object):
 		# 	- vertical rotation from rest
 		#	- horizontal rotation from rest
 		# }
+		all_likelihoods = np.zeros((num_particles,), dtype='float32')
+		if return_posed_mice:
+			posed_mice = np.zeros((num_particles, self.mouse_height, self.mouse_width), dtype='float32')
 
-		self.offset_x = particle_data[:,0] - x
-		self.offset_y = particle_data[:,1] - y
-		self.offset_theta = particle_data[:,2] - theta
+		for i in range(num_passes):
 
-		# TODO: do something with the offsets and angles! 
-		# This is ridiculous, get to it, chop chop.
+			# Slice out our current particles to render
+			start = i*self.num_mice
+			end = start+self.num_mice
+			this_particle_data = particle_data[start:end]
 
-		rotations = particle_data[:,3:]
-		rotations = np.reshape(rotations, (num_particles, -1, 3))
-		self.rotations = rotations
+			# Set the position and angle offsets
+			self.offset_x = this_particle_data[:,0] - x
+			self.offset_y = this_particle_data[:,1] - y
+			self.offset_theta = this_particle_data[:,2] - theta
 
-		# Display the mouse scene (or render to a framebuffer, alternatively)
-		self.display()
+			# Set the joint rotations
+			rotations = this_particle_data[:,3:]
+			rotations = np.reshape(rotations, (self.num_mice, -1, 3))
+			self.rotations = rotations
 
-		# Return the computed likelihoods
-		return self.likelihood.ravel()
+			# Display the mouse scene (or render to a framebuffer, alternatively)
+			self.display()
+
+			# Grab the computed likelihoods
+			all_likelihoods[start:end] = self.likelihood.ravel()
+			if return_posed_mice:
+				posed_mice[start:end] = self.posed_mice.copy()
+		
+		if return_posed_mice:
+			return all_likelihoods, posed_mice
+		else:
+			return all_likelihoods
 
 def test_single_mouse():
 	from load_data import load_behavior_data
 
 	path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
-	which_img = 100
+	which_img = 731
 	
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
 	image /= 354.0;
 
 	num_particles = 32**2
-	numCols = int(np.sqrt(num_particles))
-	numRows = numCols
+	numCols = 16
+	numRows = 16
 	scenefile = "data/mouse_mesh_low_poly.npz"
 
 	useFramebuffer = True
@@ -553,31 +580,33 @@ def test_single_mouse():
 
 	# Get the base, unposed, rotations
 	rot = ms.get_joint_rotations().copy()
+	# Tile it so it's the same size as the number of particles
+	num_passes = int(num_particles / ms.num_mice)
+	rot = np.tile(rot, (num_passes, 1, 1))
 
 	# Fill in some particle data
 	particle_data = np.zeros((num_particles, 3+9*3))
-
-	# Set the offsets
-	offset_val = 90
-	particle_data[:,:2] = offset_val + np.random.normal(scale=2, size=(num_particles, 2))
-
-	# Set the angles
-	theta_val = 30
-	particle_data[:,2] = theta_val + np.random.normal(scale=2, size=(num_particles,))
-
 	particle_data[:,3::3] = rot[:,:,0]
 	particle_data[:,4::3] = rot[:,:,1]
 	particle_data[:,5::3] = rot[:,:,2]
 
+	# Set the offsets
+	position_val = 0
+	particle_data[:,:2] = position_val + np.random.normal(scale=1, size=(num_particles, 2))
+
+	# Set the angles
+	theta_val = 0
+	particle_data[:,2] = theta_val + np.random.normal(scale=1, size=(num_particles,))
+
+
 	particle_data[1:,7::3] += np.random.normal(scale=10, size=(num_particles-1, ms.num_bones-1))
 	particle_data[1:,8::3] += np.random.normal(scale=10, size=(num_particles-1, ms.num_bones-1))
-	# particle_data[:,7+3*3] += np.random.normal(scale=10, size=(num_particles, ))
-	# particle_data[:,8+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 
-	likelihoods = ms.get_likelihood(image, \
-						x=offset_val, y=offset_val, \
+	likelihoods, posed_mice = ms.get_likelihood(image, \
+						x=position_val, y=position_val, \
 						theta=theta_val, \
-						particle_data=particle_data)
+						particle_data=particle_data,
+						return_posed_mice=True)
 
 	# L = ms.likelihood.T.ravel()
 	particle_rotations = np.hstack((particle_data[:,4::3], particle_data[:,5::3]))
@@ -605,12 +634,12 @@ def test_single_mouse():
 
 	# Find the five best mice
 	idx = np.argsort(likelihoods)
-	fivebest = np.hstack(ms.posed_mice[idx[-5:]])
+	fivebest = np.hstack(posed_mice[idx[-5:]])
 	# Show first the raw mouse, then my hand-posed mouse, and then the five best poses
 	
 	figure()
 	title("Five best (best, far right)")
-	imshow(np.hstack((ms.mouse_img, ms.posed_mice[0], fivebest)))
+	imshow(np.hstack((ms.mouse_img, posed_mice[0], fivebest)))
 	vlines(ms.mouse_width, 0, ms.mouse_height, linewidth=3, color='w')
 	text(ms.mouse_width/2.0, ms.mouse_width*0.9,'Real Mouse',
 		 horizontalalignment='center',
@@ -634,7 +663,7 @@ if __name__ == '__main__':
 		scenefile = "data/mouse_mesh_low_poly.npz"
 		ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
 									scale = 2.1, \
-									numCols=10, numRows=10, useFramebuffer=useFramebuffer)
+									numCols=16, numRows=16, useFramebuffer=useFramebuffer)
 		ms.gl_init()
 		glutMainLoop()
 	else:
