@@ -195,12 +195,12 @@ class MouseScene(object):
 
 
 		# Timing
-		thistime = time.time()
-		this_rate = 1.0/(thistime - self.lasttime)
-		self.avgrate = (this_rate + self.iframe*self.avgrate)/(self.iframe+1.0)
-		self.iframe += 1.0
-		print "Avg: %0.2f Hz (current: %0.2f Hz)" % (self.avgrate, this_rate)
-		self.lasttime = thistime
+		# thistime = time.time()
+		# this_rate = 1.0/(thistime - self.lasttime)
+		# self.avgrate = (this_rate + self.iframe*self.avgrate)/(self.iframe+1.0)
+		# self.iframe += 1.0
+		# print "Avg: %0.2f Hz (current: %0.2f Hz)" % (self.avgrate, this_rate)
+		# self.lasttime = thistime
 
 		if self.useFramebuffer:
 			glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
@@ -328,11 +328,11 @@ class MouseScene(object):
 		self.likelihood = likelihood
 		self.diffmap = this_diff
 
-		np.savez(os.path.join(os.path.dirname(__file__),"data/frame%d.npz"%self.iframe), \
-						frame=data, \
-						diffmap=this_diff, \
-						likelihood = likelihood,
-						mouse_img = self.mouse_img)
+		# np.savez(os.path.join(os.path.dirname(__file__),"data/frame%d.npz"%self.iframe), \
+		# 				frame=data, \
+		# 				diffmap=this_diff, \
+		# 				likelihood = likelihood,
+		# 				mouse_img = self.mouse_img)
 
 
 		if self.useFramebuffer:

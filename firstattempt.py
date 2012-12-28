@@ -1,6 +1,7 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
+from matplotlib import pyplot as plt
 
 from renderer.load_data import load_behavior_data
 from renderer.renderer import MouseScene
@@ -8,6 +9,7 @@ from renderer.renderer import MouseScene
 import predictive_models as pm
 import predictive_distributions as pd
 import particle_filter as pf
+from util.text import progprint_xrange
 
 datapath = "/Users/mattjj/Dropbox/Test Data/"
 scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
@@ -89,10 +91,9 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
     particlefilter = pf.ParticleFilter(3+2*9,cutoff,likelihood,initial_particles)
 
     # loop!!!
-    # for i in range(data.shape[0]):
     particlefilter.step(data[0],sideinfo=xytheta[0])
     joints_noisechol[np.arange(joints_noisechol.shape[0]),np.arange(joints_noisechol.shape[0])] = 3.**2
-    for i in range(1,5):
+    for i in progprint_xrange(1,data.shape[0]):
         particlefilter.step(data[i],sideinfo=xytheta[i])
 
     return particlefilter, expandedpose[0]
@@ -119,6 +120,25 @@ def expand(tracks,expandedpose):
     expanded[:,:,4::3] = tracks[:,:,3::2]
     expanded[:,:,5::3] = tracks[:,:,4::2]
     return expanded
+
+def get_trackplotter(track):
+    # create mousescene object
+    numRows, numCols = (1,1)
+    ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
+            scale = 2.0, \
+            numCols=numCols, numRows=numRows, useFramebuffer=True)
+    ms.gl_init()
+
+    # load images
+    images = load_behavior_data(datapath,track.shape[0],'images')[:,::-1,:].astype('float32')/354.0
+
+    def plotter(timeindex):
+        plt.interactive(True)
+        ms.get_likelihood(images[timeindex],track[na,timeindex])
+        plt.imshow(np.hstack((ms.mouse_img, ms.posed_mice[0])))
+
+    return plotter
+
 
 ##########
 #  main  #
