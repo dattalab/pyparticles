@@ -90,7 +90,9 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
 
     # loop!!!
     # for i in range(data.shape[0]):
-    for i in range(25):
+    particlefilter.step(data[0],sideinfo=xytheta[0])
+    joints_noisechol[np.arange(joints_noisechol.shape[0]),np.arange(joints_noisechol.shape[0])] = 5.**2
+    for i in range(1,5):
         particlefilter.step(data[i],sideinfo=xytheta[i])
 
     return particlefilter, expandedpose[0]
