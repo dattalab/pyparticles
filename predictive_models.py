@@ -1,76 +1,16 @@
 from __future__ import division
 import numpy as np
-from collections import defaultdict, deque
-import abc, copy
+from collections import defaultdict
 
 from pymattutil.stats import sample_discrete
 
-'''non-iid predictive samplers, mostly crp models'''
-# PredictiveModels keep the 'track' and are used directly as particles
-# in fact, they should just be called particles
-
-class PredictiveModel(object):
-    __metaclass__ = abc.ABCMeta
-
-    # needs a self.track member
-
-    @abc.abstractmethod
-    def sample_next(self,*args,**kwargs):
-        pass
-
-    @abc.abstractmethod
-    def copy(self):
-        pass
-
-#######################
-#  Particle wrappers  #
-#######################
-
-class IID(PredictiveModel):
-    def __init__(self,baseclass):
-        self.sampler = baseclass()
-        self.track = []
-
-    def sample_next(self,*args,**kwargs):
-        self.track.append(self.sampler.sample_next(*args,**kwargs))
-        return self.track[-1]
-
-    def __getattr__(self,name):
-        return getattr(self.sampler,name)
-
-    def __str__(self):
-        return '%s(%s)' % (self.__class__.__name__,self.sampler.__str__())
-
-    def copy(self):
-        new = self.__new__(self.__class__)
-        new.track = self.track[:]
-        new.sampler = self.sampler.copy()
-        return new
-
-
-class AR(IID):
-    def __init__(self,numlags,initial_obs,baseclass):
-        assert len(initial_obs) == numlags
-        super(AR,self).__init__(baseclass)
-        self.lagged_outputs = deque(initial_obs,maxlen=numlags)
-
-    def sample_next(self,*args,**kwargs):
-        out = self.sampler.sample_next(lagged_outputs=self.lagged_outputs,*args,**kwargs)
-        self.lagged_outputs.appendleft(out)
-        self.track.append(out)
-        return out
-
-    def copy(self):
-        new = super(AR,self).copy()
-        new.lagged_outputs = self.lagged_outputs.__copy__()
-        return new
-
+'''predictive samplers for distributions that use basic distributions'''
 
 ##########
 #  Meta  #
 ##########
 
-class Mixture(PredictiveModel):
+class Mixture(object):
     def __init__(self,weights,components):
         self.weights = weights
         self.components = components
@@ -85,11 +25,27 @@ class Mixture(PredictiveModel):
         new.components = [c.copy() for c in self.components]
         return new
 
+
+class Concatenation(object):
+    def __init__(self,components,arggetters):
+        self.components = components
+        self.arggetters = arggetters
+
+    def sample_next(self,**kwargs):
+        return np.concatenate([c.sample_next(**a(kwargs))
+            for c,a in zip(self.components,self.arggetters)])
+
+    def copy(self):
+        new = self.__new__(self.__class__)
+        new.components = [c.copy() for c in self.components]
+        new.arggetters = self.arggetters
+        return new
+
 ###################
 #  'Dumb' models  #
 ###################
 
-class RandomWalk(PredictiveModel):
+class RandomWalk(object):
     def __init__(self,noiseclass):
         self.noisesampler = noiseclass()
 
@@ -103,17 +59,15 @@ class RandomWalk(PredictiveModel):
         return new
 
 
-class SideInfoRandomWalk(RandomWalk):
-    def sample_next(self,sideinfo,lagged_outputs):
-        y = lagged_outputs[0]
-        y[:sideinfo.shape[0]] = sideinfo
-        return y + self.noisesampler.sample_next()
+class SideInfo(RandomWalk):
+    def sample_next(self,sideinfo):
+        return sideinfo + self.noisesampler.sample_next()
 
 
-class Momentum(PredictiveModel):
+class Momentum(object):
     def __init__(self,propmatrix,noiseclass):
         self.noisesampler = noiseclass()
-        self.propmatrix = propmatrix # np.hstack((2*np.eye(ndim),-1*np.eye(ndim)))
+        self.propmatrix = propmatrix # e.g., np.hstack((2*np.eye(ndim),-1*np.eye(ndim)))
 
     def sample_next(self,lagged_outputs):
         ys = np.concatenate(lagged_outputs)
@@ -150,7 +104,7 @@ class _CRPIndexSampler(object):
         return new
 
 
-def CRPSampler(PredictiveModel): # TODO
+def CRPSampler(object): # TODO
     pass
 
 
@@ -173,7 +127,7 @@ class _CRFIndexSampler(object):
         return new
 
 
-class HDPHMMSampler(PredictiveModel):
+class HDPHMMSampler(object):
     def __init__(self,alpha,gamma,obs_sampler_factory):
         self.state_sampler = _CRFIndexSampler(alpha,gamma)
         self.dishes = defaultdict(obs_sampler_factory)
@@ -225,6 +179,7 @@ class HDPHSMMSampler(HDPHMMSampler):
 
 class _CRPIndexSamplerTaboo(_CRPIndexSampler):
     def __init__(self,alpha):
+        raise NotImplementedError
         self.alpha = alpha
         self.assignments = [0]
 
@@ -241,6 +196,7 @@ class _CRPIndexSamplerTaboo(_CRPIndexSampler):
 
 class _CRFIndexSamplerNoSelf(_CRFIndexSampler):
     def __init__(self,alpha,gamma):
+        raise NotImplementedError
         self.table_samplers = defaultdict(lambda: _CRPIndexSampler(alpha))
         self.meta_table_sampler = _CRPIndexSamplerTaboo(gamma)
         self.meta_table_assignments = defaultdict(lambda: defaultdict(lambda: self.meta_table_sampler.sample_next))
@@ -250,8 +206,9 @@ class _CRFIndexSamplerNoSelf(_CRFIndexSampler):
                 [self.table_samplers[restaurant_idx].sample_next()](restaurant_idx)
 
 
-class HDPHSMMNoSelfSampler(PredictiveModel):
+class HDPHSMMNoSelfSampler(object):
     def __init__(self,alpha,gamma,obs_sampler_factory,dur_sampler_factory):
+        raise NotImplementedError
         self.state_sampler = _CRFIndexSamplerNoSelf(alpha,gamma)
         self.dishes = defaultdict(obs_sampler_factory)
         self.dur_dishes = defaultdict(dur_sampler_factory)

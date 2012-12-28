@@ -424,7 +424,7 @@ class MouseScene(object):
 	def setup_texture(self):
 		import Image
 
-		f = np.load("data/meanmouse.npz")
+		f = np.load(os.path.join(os.path.dirname(__file__),"data/meanmouse.npz"))
 		self.mouse_img = f['mouse_img'].astype('float32')
 		I = Image.fromarray(self.mouse_img)
 		self.mouse_img = np.array(I.resize((self.mouse_width, self.mouse_height)))
