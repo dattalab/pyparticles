@@ -90,8 +90,31 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
 
     # loop!!!
     # for i in range(data.shape[0]):
-    for i in range(10):
+    for i in range(20):
         particlefilter.step(data[i],sideinfo=xytheta[i])
 
+    return particlefilter
+
+
+###########
+#  utils  #
+###########
+
+def topk(items,scores,k):
+    return [items[idx] for idx in np.argsort(scores)[:-(k+1):-1]]
+
+def meantrack(particles,weights):
+    track = np.array(particles[0].track)*weights[0,na]
+    for p,w in zip(particles[1:],weights[1:]):
+        track += np.array(p.track) * w
+    return track
+
+##########
+#  main  #
+##########
+
 if __name__ == '__main__':
-    run_randomwalk_fixednoise_sideinfo(500)
+    res = run_randomwalk_fixednoise_sideinfo(500)
+    np.save('toptracks',np.array([p.track for p in topk(res.particles,res.weights_norm,5)]))
+    np.save('meantrack',meantrack(res.particles,res.weights_norm))
+
