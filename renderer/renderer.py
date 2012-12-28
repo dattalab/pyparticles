@@ -197,14 +197,15 @@ class MouseScene(object):
 		# Tiling parameters
 		numCols = self.numCols
 		numRows = self.numRows
-
+		
 		# Timing
-		thistime = time.time()
-		this_rate = 1.0/(thistime - self.lasttime)
-		self.avgrate = (this_rate + self.iframe*self.avgrate)/(self.iframe+1.0)
-		self.iframe += 1.0
-		print "Avg: %0.2f Hz (current: %0.2f Hz)" % (self.avgrate, this_rate)
-		self.lasttime = thistime
+		if self.debug:
+			thistime = time.time()
+			this_rate = 1.0/(thistime - self.lasttime)
+			self.avgrate = (this_rate + self.iframe*self.avgrate)/(self.iframe+1.0)
+			self.iframe += 1.0
+			print "Avg: %0.2f Hz (current: %0.2f Hz)" % (self.avgrate, this_rate)
+			self.lasttime = thistime
 
 		if self.useFramebuffer:
 			glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
