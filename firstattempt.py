@@ -90,10 +90,10 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
 
     # loop!!!
     # for i in range(data.shape[0]):
-    for i in range(20):
+    for i in range(25):
         particlefilter.step(data[i],sideinfo=xytheta[i])
 
-    return particlefilter
+    return particlefilter, expandedpose[0]
 
 
 ###########
@@ -109,12 +109,21 @@ def meantrack(particles,weights):
         track += np.array(p.track) * w
     return track
 
+def expand(tracks,expandedpose):
+    tracks = np.array(tracks,ndmin=3)
+    expanded = np.empty((tracks.shape[0],tracks.shape[1],expandedpose.shape[0]))
+    expanded[:,:,3::3] = expandedpose[3::3]
+    expanded[:,:,:3] = tracks[:,:,:3]
+    expanded[:,:,4::3] = tracks[:,:,3::2]
+    expanded[:,:,5::3] = tracks[:,:,4::2]
+    return expanded
+
 ##########
 #  main  #
 ##########
 
 if __name__ == '__main__':
-    res = run_randomwalk_fixednoise_sideinfo(500)
-    np.save('toptracks',np.array([p.track for p in topk(res.particles,res.weights_norm,5)]))
-    np.save('meantrack',meantrack(res.particles,res.weights_norm))
+    res, expandedpose = run_randomwalk_fixednoise_sideinfo(500)
+    np.save('top5tracks',expand([p.track for p in topk(res.particles,res.weights_norm,5)],expandedpose))
+    np.save('meantrack',np.squeeze(expand(meantrack(res.particles,res.weights_norm),expandedpose)))
 
