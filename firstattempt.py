@@ -131,6 +131,7 @@ def get_trackplotter(track):
 
     # load images
     images = load_behavior_data(datapath,track.shape[0],'images')[:,::-1,:].astype('float32')/354.0
+    images = np.array([np.rot90(i) for i in images])
 
     def plotter(timeindex):
         plt.interactive(True)
