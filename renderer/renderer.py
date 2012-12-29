@@ -256,11 +256,10 @@ class MouseScene(object):
 		# Draw the poly mesh
 		# ==============================
 
-		# glEnableVertexAttribArray(self.position_location)
+		# Let OpenGL know where we're keeping our
+		# vertices, joint weights and joint indices
 		glEnableVertexAttribArray(self.joint_weights_location)
 		glEnableVertexAttribArray(self.joint_indices_location)
-
-
 		stride = (3 + self.num_joint_influences*2)*4
 		glEnableClientState(GL_VERTEX_ARRAY)
 		glVertexPointer(3, GL_FLOAT, stride, self.mesh_vbo)
@@ -271,38 +270,45 @@ class MouseScene(object):
 						4, GL_FLOAT, 
 						False, stride, self.mesh_vbo+3*4+self.num_joint_influences*4)
 
+		# Figure out what our offsets are going to be
 		x = self.mouse_width*np.mod(np.arange(numCols*numRows),numCols) + self.offset_x
 		y = self.mouse_height*np.floor_divide(np.arange(numCols*numRows), numCols) + self.offset_y
 		theta = self.offset_theta
+
+		# How are we going to scale our mouse? For now, one scale
+		# for all displayed mice
+		# TODO: make scale settable per-mouse
 		scale_array = np.repeat(self.scale, numCols*numRows, axis=0)
 
-		joints = self.skin.jointChain.joints
-
-		# Bi = np.array([np.array(j.Bi.copy()) for j in joints]).astype('float32')
-		# glUniformMatrix4fv(self.bindingMatrixInverse_location, self.num_bones, True, Bi)
-
-		old_rotations = np.copy(self.rotations)
+		# If we're displaying to the screen, we're debugging,
+		# which means we'd like to see a bunch of random poses.
 		if not self.useFramebuffer:
+			old_rotations = np.copy(self.rotations)
 			self.rotations[:,:,1:] += np.random.normal(scale=10,
 												size=(self.num_mice, self.num_bones, 2))
 
-		translations = np.array([j.translation.copy() for j in joints]).astype('float32')
-		glUniform3fv(self.translation_location, self.num_bones, translations)
-
+		# Okay, this is where the drawing actually happens.
+		# For now, we're drawing each mouse separately.
+		# This is expensive and stupid, but instanced drawing
+		# is a bit off.
+		# TODO: implement instanced drawing.
 		for i in range(numCols*numRows):
+
+			# Send up the uniforms
 			glUniform1f(self.offsetx_location, x[i])
 			glUniform1f(self.offsety_location, y[i])
 			glUniform1f(self.scale_location, scale_array[i])
 			glUniform3fv(self.rotation_location, self.num_bones, self.rotations[i])
 			
+			# Rotate the mouse, and draw the mouse
 			glRotate(-theta[i], 0., 1., 0.)
 			glDrawElements(GL_TRIANGLES, self.num_indices, GL_UNSIGNED_SHORT, self.index_vbo)
 			glRotate(theta[i], 0., 1., 0.)
 
+		# Time for cleanup. Unbind the VBOs and disable draw modes.
 		self.mesh_vbo.unbind()
 		self.index_vbo.unbind()
 		glDisableClientState(GL_VERTEX_ARRAY)
-		# ==============================
 
 		# Turn off our shaders
 		glUseProgram(0)
@@ -310,8 +316,15 @@ class MouseScene(object):
 		if not self.useFramebuffer:
 			glutSwapBuffers()
 			self.rotations = np.copy(old_rotations)
+		# ==============================
 
-		# Uncomment this if you want to read the data off of the card
+
+
+		# For now, this is how we get mice data
+		# off of the GPU. Just grab the raw pixel data back from the GPU,
+		# and do our likelihood computations locally.
+		# The speedups to be gained here by moving it to the GPU 
+		# aren't super huge, as far as I'm aware.
 		data = glReadPixels(0,0,self.width,self.height, GL_RGB, GL_FLOAT)
 		data = data.ravel().reshape((self.height, self.width, 3))[:,:,0]
 		this_diff = (np.tile(self.mouse_img, (self.numRows, self.numCols)) - data)**2.0
@@ -331,6 +344,7 @@ class MouseScene(object):
 		self.likelihood = likelihood
 		self.diffmap = this_diff
 
+		# If we'd like to write the frames to disk, go ahead.
 		if self.debug:
 			np.savez("data/frame%d.npz"%self.iframe, \
 							frame=data, \
@@ -339,6 +353,7 @@ class MouseScene(object):
 							mouse_img = self.mouse_img)
 
 
+		# If we are using a framebuffer, we'll finally unbind it.
 		if self.useFramebuffer:
 			glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
@@ -542,10 +557,16 @@ class MouseScene(object):
 			location = glGetAttribLocation(self.shaderProgram, attribute)
 			setattr(self, attribute+"_location", location)
 
+		# There's a couple uniforms that never change
+		# For now, the inverse binding matrix, and the joint translations
+		# (the skeleton morphology does not change, and joints only rotate, 
+		#	they don't slide)
 		glUseProgram(self.shaderProgram)
 		joints = self.skin.jointChain.joints
 		Bi = np.array([np.array(j.Bi.copy()) for j in joints]).astype('float32')
 		glUniformMatrix4fv(self.bindingMatrixInverse_location, self.num_bones, True, Bi)
+		translations = np.array([j.translation.copy() for j in joints]).astype('float32')
+		glUniform3fv(self.translation_location, self.num_bones, translations)
 		glUseProgram(0)
 
 
@@ -778,8 +799,6 @@ def test_single_mouse():
 		 horizontalalignment='center',
 		 verticalalignment='center',
 		 color='white')
-
-
 
 	return ms, rotation_diffs, likelihoods, particle_data
 
