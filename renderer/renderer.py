@@ -805,12 +805,12 @@ def test_single_mouse():
 
 if __name__ == '__main__':
 	
-	useFramebuffer = False
+	useFramebuffer = True
 	if not useFramebuffer:
 		scenefile = "data/mouse_mesh_low_poly.npz"
 		ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
 									scale = 2.1, \
-									numCols=32, numRows=32, useFramebuffer=useFramebuffer)
+									numCols=64, numRows=64, useFramebuffer=useFramebuffer)
 		ms.gl_init()
 		glutMainLoop()
 	else:
