@@ -25,6 +25,7 @@ scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
 #           lambda d: {'lagged_outputs':
 #               map(lambda x: x[2:],operator.itemgetter('lagged_outputs')(d))}
 #       ))
+
 class MyModel(object):
     def __init__(self,xytheta_noisechol,joints_noisechol):
         self.xytheta_sampler = pm.SideInfo(noiseclass=lambda: pd.FixedNoise(xytheta_noisechol))
@@ -64,37 +65,45 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
     rot = ms.get_joint_rotations().copy()
 
     # set up likelihood
-    expandedpose = np.empty((num_particles,3+3*9))
+    expandedpose = np.ones((num_particles,3+3*9)) * -1111
     expandedpose[:,3::3] = rot[:,:,0] # x angles are fixed
+    expandedpose[:,4] = rot[:,0,1] # as are first tuple of y and z
+    expandedpose[:,5] = rot[:,0,2]
     def likelihood(im,pose):
         expandedpose[:,:3] = pose[:,:3]
-        expandedpose[:,4::3] = pose[:,3::2]
-        expandedpose[:,5::3] = pose[:,4::2]
+        expandedpose[:,7::3] = pose[:,3::2] # y angles
+        expandedpose[:,8::3] = pose[:,4::2] # z angles
         return ms.get_likelihood(im,expandedpose)
 
     # set up particle business
-    xytheta_noisechol = np.diag( (3.,3.,3.,) )**2
-    joints_noisechol = np.diag( (10.,)*(2*9) )**2
+    # xytheta_noisechol = np.diag( (3.,3.,3.,) )
+    # joints_noisechol = np.diag( (10.,)*(2*8) )
 
-    initial_pose = np.empty(3+2*9)
-    initial_pose[3::2] = rot[0,:,1]
-    initial_pose[4::2] = rot[0,:,2]
+    noisechol = np.diag( (1.,)*2 + (5.,) + (10.,)*(2*8) )
+
+    initial_pose = np.zeros(3+2*8)
+    initial_pose[3::2] = rot[0,1:,1] # y angles
+    initial_pose[4::2] = rot[0,1:,2] # z angles
+
+    np.save('initialpose',initial_pose) # TODO remove
+    np.save('rot',rot)
 
     initial_particles = [
             pf.AR(
                     numlags=1,
                     previous_outputs=(initial_pose,),
-                    baseclass=lambda: MyModel(xytheta_noisechol, joints_noisechol)
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol))
             ) for itr in range(num_particles)]
 
     # create particle filter
-    particlefilter = pf.ParticleFilter(3+2*9,cutoff,likelihood,initial_particles)
+    particlefilter = pf.ParticleFilter(3+2*8,cutoff,likelihood,initial_particles)
 
     # loop!!!
-    particlefilter.step(data[0],sideinfo=xytheta[0])
-    joints_noisechol[np.arange(joints_noisechol.shape[0]),np.arange(joints_noisechol.shape[0])] = 3.**2
-    for i in progprint_xrange(1,data.shape[0]):
-        particlefilter.step(data[i],sideinfo=xytheta[i])
+    particlefilter.step(data[0])
+    noisechol[3:,3:] = np.diag( (10.,) * (2*8) )
+    for i in progprint_xrange(1,3):
+    # for i in progprint_xrange(1,data.shape[0]):
+        particlefilter.step(data[i])
 
     return particlefilter, expandedpose[0]
 
@@ -114,23 +123,28 @@ def meantrack(particles,weights):
 
 def expand(tracks,expandedpose):
     tracks = np.array(tracks,ndmin=3)
-    expanded = np.empty((tracks.shape[0],tracks.shape[1],expandedpose.shape[0]))
+    expanded = np.ones((tracks.shape[0],tracks.shape[1],expandedpose.shape[0]))*-2222
+
     expanded[:,:,3::3] = expandedpose[3::3]
+    expanded[:,:,4] = expandedpose[4]
+    expanded[:,:,5] = expandedpose[5]
+
     expanded[:,:,:3] = tracks[:,:,:3]
-    expanded[:,:,4::3] = tracks[:,:,3::2]
-    expanded[:,:,5::3] = tracks[:,:,4::2]
+    expanded[:,:,7::3] = tracks[:,:,3::2]
+    expanded[:,:,8::3] = tracks[:,:,4::2]
     return expanded
 
+ms = None
 def get_trackplotter(track):
-    # create mousescene object
-    numRows, numCols = (1,1)
-    ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
-            scale = 2.0, \
-            numCols=numCols, numRows=numRows, useFramebuffer=True)
-    ms.gl_init()
+    global ms
+    if ms is None:
+        numRows, numCols = (1,1)
+        ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
+                scale = 2.0, \
+                numCols=numCols, numRows=numRows, useFramebuffer=True)
+        ms.gl_init()
 
-    # load images
-    images = load_behavior_data(datapath,track.shape[0],'images')[:,::-1,:].astype('float32')/354.0
+    images = load_behavior_data(datapath,track.shape[0]+5,'images').astype('float32')[5:]/354.0
     images = np.array([np.rot90(i) for i in images])
 
     def plotter(timeindex):

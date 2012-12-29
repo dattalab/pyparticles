@@ -525,8 +525,10 @@ class MouseScene(object):
 		return self.likelihood.ravel()
 
 def test_single_mouse():
-	path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
-	which_img = 731
+	# path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
+	path_to_behavior_data = "/Users/mattjj/Dropbox/Test Data/"
+	# which_img = 731
+	which_img = 0
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
@@ -535,7 +537,7 @@ def test_single_mouse():
 	num_particles = 32**2
 	numCols = int(np.sqrt(num_particles))
 	numRows = numCols
-	scenefile = "data/mouse_mesh_low_poly.npz"
+	scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly.npz")
 
 	useFramebuffer = True
 	ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
@@ -617,8 +619,8 @@ def test_single_mouse():
 if __name__ == '__main__':
 	
 	useFramebuffer = False
-	if not useFramebuffer:
-		scenefile = "data/mouse_mesh_low_poly.npz"
+	if not useFramebuffer and False:
+		scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly.npz")
 		ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
 									scale = 2.1, \
 									numCols=10, numRows=10, useFramebuffer=useFramebuffer)
@@ -632,3 +634,4 @@ if __name__ == '__main__':
 		# 										size=(self.num_mice, self.num_bones, 2))
 		# 	ms.display()
 		# 	ms.rotations = old_rotations
+		plt.show()
