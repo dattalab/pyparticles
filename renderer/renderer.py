@@ -21,7 +21,8 @@ class MouseScene(object):
 	as quickly as possible."""
 	def __init__(self, scenefile, scale = 4.0, \
 						mouse_width=640, mouse_height=480, \
-						numCols=32, numRows=32, useFramebuffer=False, debug=False):
+						numCols=32, numRows=32, useFramebuffer=False, \
+						debug=False, showTiming=True):
 
 		"""For a given scenefile (the output of 
 			get_poly_and_skin_info_maya.py), 
@@ -34,6 +35,7 @@ class MouseScene(object):
 		self.numRows = numRows
 		self.num_mice = self.numCols * self.numRows
 		self.debug = debug
+		self.showTiming = showTiming
 
 		assert np.mod(self.num_mice, 256) == 0, \
 			"Number of mice must be a multiple of 1024"
@@ -197,9 +199,9 @@ class MouseScene(object):
 		# Tiling parameters
 		numCols = self.numCols
 		numRows = self.numRows
-		
+
 		# Timing
-		if self.debug:
+		if self.showTiming:
 			thistime = time.time()
 			this_rate = 1.0/(thistime - self.lasttime)
 			self.avgrate = (this_rate + self.iframe*self.avgrate)/(self.iframe+1.0)
@@ -284,26 +286,19 @@ class MouseScene(object):
 			self.rotations[:,:,1:] += np.random.normal(scale=10,
 												size=(self.num_mice, self.num_bones, 2))
 
-		jointBindingMatrix = []
-		for i in range(numCols*numRows):
-			for j in range(self.num_bones):
-				self.skin.jointChain.joints[j].rotation = self.rotations[i,j,:]
-			self.skin.jointChain.solve_forward(0)
-			this_b = np.array([np.array(j.M.copy()) for j in self.skin.jointChain.joints]).astype('float32')
-			jointBindingMatrix.append(this_b)
-
-		if not self.useFramebuffer:
-			self.rotations = np.copy(old_rotations)
+		translations = np.array([j.translation.copy() for j in joints]).astype('float32')
+		glUniform3fv(self.translation_location, self.num_bones, translations)
 
 		for i in range(numCols*numRows):
 			glUniform1f(self.offsetx_location, x[i])
 			glUniform1f(self.offsety_location, y[i])
-			# glUniform1f(self.offsettheta_location, theta[i])
 			glUniform1f(self.scale_location, scale_array[i])
-			glUniformMatrix4fv(self.joints_location, self.num_bones, True, jointBindingMatrix[i])
+			glUniform3fv(self.rotation_location, self.num_bones, self.rotations[i])
+			
 			glRotate(-theta[i], 0., 1., 0.)
 			glDrawElements(GL_TRIANGLES, self.num_indices, GL_UNSIGNED_SHORT, self.index_vbo)
 			glRotate(theta[i], 0., 1., 0.)
+
 		self.mesh_vbo.unbind()
 		self.index_vbo.unbind()
 		glDisableClientState(GL_VERTEX_ARRAY)
@@ -314,6 +309,7 @@ class MouseScene(object):
 
 		if not self.useFramebuffer:
 			glutSwapBuffers()
+			self.rotations = np.copy(old_rotations)
 
 		# Uncomment this if you want to read the data off of the card
 		data = glReadPixels(0,0,self.width,self.height, GL_RGB, GL_FLOAT)
@@ -354,29 +350,162 @@ class MouseScene(object):
 
 		vertexShader = shaders.compileShader("""
 		#version 120
-
+		// Application to vertex shader
 		varying vec4 vertex_color;
 		uniform float offsetx;
 		uniform float offsety;
 		uniform float scale;
 
-		// uniform mat4 bindingMatrixInverse[9]; // the inverse binding matrix
-		uniform mat4 joints[9];
-		attribute vec4 joint_weights;
-		attribute vec4 joint_indices;
+		uniform vec3 rotation[9]; // rotations on each joint
+		uniform vec3 translation[9]; // translations of each joint from the previous
+		uniform mat4 bindingMatrixInverse[9]; // the inverse binding matrix
+		attribute vec3 joint_weights;
+		attribute vec3 joint_indices;
 
-		mat4 joints_copy[9];
+		mat4 lastJointWorldMatrix = mat4(1.0);
+		mat4 jointWorldMatrix = mat4(1.0);
+		mat4[9] posingMatrix;
+		mat4 localRotation = mat4(1.0);
+
+
+		mat4 calcLocalRotation(in vec3 rotation, in vec3 translation) {
+
+			vec3 this_rotation = radians(rotation);
+			vec3 cosrot = cos(this_rotation);
+			vec3 sinrot = sin(this_rotation);
+			vec4 pt;
+
+			mat4 Rx = mat4(cosrot.x);
+			Rx[3].w = 1.0;
+			mat4 Ry = mat4(cosrot.y);
+			Ry[3].w = 1.0;
+			mat4 Rz = mat4(cosrot.z);
+			Rz[3].w = 1.0;
+
+			Rx[0].x += 1.0 - cosrot.x;
+			Ry[1].y += 1.0 - cosrot.y;
+			Rz[2].z += 1.0 - cosrot.z;
+
+			Rx[1].z += -sinrot.x;
+			Rx[2].y += sinrot.x;
+
+			Ry[0].z += sinrot.y;
+			Ry[2].x += -sinrot.y;
+
+			Rz[0].y += -sinrot.z;
+			Rz[1].x += sinrot.z;
+
+			mat4 Tout = Rx*Ry*Rz;
+
+			Tout[0].w = translation.x;
+			Tout[1].w = translation.y;
+			Tout[2].w = translation.z;
+
+			return Tout;
+		}
+
+		mat4 mat_at_i(mat4 A[9], int the_index) {
+			if (the_index == 0) { return A[0]; }
+			else if (the_index == 1) { return A[1]; }
+			else if (the_index == 2) { return A[2]; }
+			else if (the_index == 3) { return A[3]; }
+			else if (the_index == 4) { return A[4]; }
+			else if (the_index == 5) { return A[5]; }
+			else if (the_index == 6) { return A[6]; }
+			else if (the_index == 7) { return A[7]; }
+			else if (the_index == 8) { return A[8]; }
+		}
+
+		mat4[9] set_mat_at_i(mat4 A[9], mat4 B, int the_index) {
+			if (the_index == 0) { A[0] = B; return A; }
+			else if (the_index == 1) { A[1] = B; return A; }
+			else if (the_index == 2) { A[2] = B; return A; }
+			else if (the_index == 3) { A[3] = B; return A; }
+			else if (the_index == 4) { A[4] = B; return A; }
+			else if (the_index == 5) { A[5] = B; return A; }
+			else if (the_index == 6) { A[6] = B; return A; }
+			else if (the_index == 7) { A[7] = B; return A; }
+			else if (the_index == 8) { A[8] = B; return A; }
+		}
 		
 		void main()
 		{	
+
+			// For each joint
+			// 1. calculate its local rotation matrix
+			// 2. calculate its world position from the previous joint's world matrix
+			// 3. multiply its inverse binding matrix into its world matrix as the posing matrix
+			// 4. multiply the posing matrix into the vertex
 			
-			vec4 vertex = vec4(0.0);
+			// NOTE: there can be no for loops over declared arrays
+			// on Apple graphics hardware. It is absolutely ridiculous. 
+			// I might consider using string templating in the future.
+
+			
+			// Calculate a joint's local rotation matrix
+			localRotation = calcLocalRotation(rotation[0], translation[0]);
+		
+			// Calculate its world position
+			jointWorldMatrix = localRotation*lastJointWorldMatrix;
+			
+			// Multiply the inverse binding matrix into the world matrix
+			posingMatrix[0] = bindingMatrixInverse[0] * jointWorldMatrix;
+		
+			// Get ready for the next iteration
+			lastJointWorldMatrix = jointWorldMatrix;
+
+
+			// Now, repeat it another 8 times, with no loop.
+			localRotation = calcLocalRotation(rotation[1], translation[1]);
+			jointWorldMatrix = localRotation*lastJointWorldMatrix;
+			posingMatrix[1] = bindingMatrixInverse[1] * jointWorldMatrix;
+			lastJointWorldMatrix = jointWorldMatrix;
+
+			localRotation = calcLocalRotation(rotation[2], translation[2]);
+			jointWorldMatrix = localRotation*lastJointWorldMatrix;
+			posingMatrix[2] = bindingMatrixInverse[2] * jointWorldMatrix;
+			lastJointWorldMatrix = jointWorldMatrix;
+
+			localRotation = calcLocalRotation(rotation[3], translation[3]);
+			jointWorldMatrix = localRotation*lastJointWorldMatrix;
+			posingMatrix[3] = bindingMatrixInverse[3] * jointWorldMatrix;
+			lastJointWorldMatrix = jointWorldMatrix;
+
+			localRotation = calcLocalRotation(rotation[4], translation[4]);
+			jointWorldMatrix = localRotation*lastJointWorldMatrix;
+			posingMatrix[4] = bindingMatrixInverse[4] * jointWorldMatrix;
+			lastJointWorldMatrix = jointWorldMatrix;
+
+			localRotation = calcLocalRotation(rotation[5], translation[5]);
+			jointWorldMatrix = localRotation*lastJointWorldMatrix;
+			posingMatrix[5] = bindingMatrixInverse[5] * jointWorldMatrix;
+			lastJointWorldMatrix = jointWorldMatrix;
+
+			localRotation = calcLocalRotation(rotation[6], translation[6]);
+			jointWorldMatrix = localRotation*lastJointWorldMatrix;
+			posingMatrix[6] = bindingMatrixInverse[6] * jointWorldMatrix;
+			lastJointWorldMatrix = jointWorldMatrix;
+
+			localRotation = calcLocalRotation(rotation[7], translation[7]);
+			jointWorldMatrix = localRotation*lastJointWorldMatrix;
+			posingMatrix[7] = bindingMatrixInverse[7] * jointWorldMatrix;
+			lastJointWorldMatrix = jointWorldMatrix;
+
+			localRotation = calcLocalRotation(rotation[8], translation[8]);
+			jointWorldMatrix = localRotation*lastJointWorldMatrix;
+			posingMatrix[8] = bindingMatrixInverse[8] * jointWorldMatrix;
+			lastJointWorldMatrix = jointWorldMatrix;
+
+
+			// Calculate a joint's local rotation matrix
+			vec4 vertex = vec4(0., 0., 0., 0.0);
+			int index;			
 			for (int i=0; i < 3; ++i) {
-				int index = int(joint_indices[i]);
-				vertex += joint_weights[i] * gl_Vertex * joints[index]; 
+				index = int(joint_indices[i]);
+				vertex += joint_weights[i] * gl_Vertex * mat_at_i(posingMatrix, index);
 			}
-			
 			vertex.xyz *= scale;
+
 			vertex[0] = vertex[0]+offsetx;
 			vertex[2] = vertex[2]+offsety;
 
@@ -405,7 +534,7 @@ class MouseScene(object):
 
 		# Now, let's make sure our uniform and attribute value value will be sent 
 		# for uniform in ['joints', 'scale', 'offsetx', 'offsety', 'rotation', 'translation', 'bindingMatrixInverse']:
-		for uniform in ['joints', 'scale', 'offsetx', 'offsety', 'bindingMatrixInverse']:
+		for uniform in ['scale', 'offsetx', 'offsety', 'rotation', 'translation', 'bindingMatrixInverse']:
 			location = glGetUniformLocation(self.shaderProgram, uniform)
 			name = uniform+"_location"
 			setattr(self, uniform+"_location", location)
@@ -413,12 +542,10 @@ class MouseScene(object):
 			location = glGetAttribLocation(self.shaderProgram, attribute)
 			setattr(self, attribute+"_location", location)
 
-		# Uploading the binding matrices
 		glUseProgram(self.shaderProgram)
 		joints = self.skin.jointChain.joints
 		Bi = np.array([np.array(j.Bi.copy()) for j in joints]).astype('float32')
 		glUniformMatrix4fv(self.bindingMatrixInverse_location, self.num_bones, True, Bi)
-
 		glUseProgram(0)
 
 
@@ -664,7 +791,7 @@ if __name__ == '__main__':
 		scenefile = "data/mouse_mesh_low_poly.npz"
 		ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
 									scale = 2.1, \
-									numCols=16, numRows=16, useFramebuffer=useFramebuffer)
+									numCols=32, numRows=32, useFramebuffer=useFramebuffer)
 		ms.gl_init()
 		glutMainLoop()
 	else:
