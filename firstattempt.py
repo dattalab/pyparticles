@@ -65,45 +65,46 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
     rot = ms.get_joint_rotations().copy()
 
     # set up likelihood
-    expandedpose = np.ones((num_particles,3+3*9)) * -1111
+    expandedpose = np.zeros((num_particles,3+3*9))
     expandedpose[:,3::3] = rot[:,:,0] # x angles are fixed
     expandedpose[:,4] = rot[:,0,1] # as are first tuple of y and z
     expandedpose[:,5] = rot[:,0,2]
-    def likelihood(im,pose):
+    def likelihood(stepnum,im,pose):
         expandedpose[:,:3] = pose[:,:3]
         expandedpose[:,7::3] = pose[:,3::2] # y angles
         expandedpose[:,8::3] = pose[:,4::2] # z angles
         # np.save('expandedpose',expandedpose)
-        likelihood = ms.get_likelihood(im,expandedpose)
+        likelihood = ms.get_likelihood(im,particle_data=expandedpose,
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])
         # np.save('likelihood',likelihood)
         return likelihood
 
     # set up particle business
-    noisechol = np.diag( (1.,)*2 + (1.,) + (10.,)*(2*8) )
+    # noisechol = np.diag( (1.,)*2 + (1.,) + (10.,)*(2*8) )
+    xytheta_noisechol = np.diag( (1.,)*2 + (1.,) )
+    joints_noisechol = np.diag( (10.,)*(2*8) )
 
     initial_pose = np.zeros(3+2*8)
     initial_pose[3::2] = rot[0,1:,1] # y angles
     initial_pose[4::2] = rot[0,1:,2] # z angles
 
-    # np.save('initialpose',initial_pose) # TODO remove
-    # np.save('rot',rot)
-
     initial_particles = [
             pf.AR(
                     numlags=1,
                     previous_outputs=(initial_pose,),
-                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol))
+                    # baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol))
+                    baseclass=lambda: MyModel(xytheta_noisechol, joints_noisechol)
             ) for itr in range(num_particles)]
 
     # create particle filter
     particlefilter = pf.ParticleFilter(3+2*8,cutoff,likelihood,initial_particles)
 
     # loop!!!
-    particlefilter.step(data[0])
-    noisechol[3:,3:] = np.diag( (1.,) * (2*8) )
+    particlefilter.step(data[0],sideinfo=xytheta[0])
+    joints_noisechol[:,:] = np.diag( (1.,) * (2*8) ) # TODO make this first step prettier
     for i in progprint_xrange(1,30):
     # for i in progprint_xrange(1,data.shape[0]):
-        particlefilter.step(data[i])
+        particlefilter.step(data[i],sideinfo=xytheta[i])
 
     return particlefilter, expandedpose[0]
 
@@ -123,7 +124,7 @@ def meantrack(particles,weights):
 
 def expand(tracks,expandedpose):
     tracks = np.array(tracks,ndmin=3)
-    expanded = np.ones((tracks.shape[0],tracks.shape[1],expandedpose.shape[0]))*-2222
+    expanded = np.zeros((tracks.shape[0],tracks.shape[1],expandedpose.shape[0]))
 
     expanded[:,:,3::3] = expandedpose[3::3]
     expanded[:,:,4] = expandedpose[4]
