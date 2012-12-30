@@ -4,5 +4,4 @@ util
 /temp*
 renderer/data/*
 /profile_out.txt
-/meantrack.npy
-/top5tracks.npy
+*.npy
