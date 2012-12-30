@@ -22,6 +22,7 @@ class ParticleFilter(object):
         self.log_weights += self.log_likelihood_fn(self.numsteps,data,self.locs)
 
         if self._Neff() < self.cutoff:
+            print 'resampling'
             self._resample()
             self._Neff()
 
@@ -31,7 +32,8 @@ class ParticleFilter(object):
         self.weights_norm = np.exp(self.log_weights - np.logaddexp.reduce(self.log_weights))
         self.weights_norm /= self.weights_norm.sum()
         Neff = 1./np.sum(self.weights_norm**2)
-        self.Neff_history.append(Neff)
+        self.Neff_history.append((self.numsteps,Neff))
+        print Neff
         return Neff
 
     def _resample(self):
