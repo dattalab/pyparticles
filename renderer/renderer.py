@@ -528,11 +528,12 @@ def test_single_mouse():
 	# path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
 	path_to_behavior_data = "/Users/mattjj/Dropbox/Test Data/"
 	# which_img = 731
-	which_img = 0
+	which_img = 5
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
 	image /= 354.0;
+	# np.save('data2',image)
 
 	num_particles = 32**2
 	numCols = int(np.sqrt(num_particles))
@@ -566,7 +567,9 @@ def test_single_mouse():
 	# particle_data[:,7+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 	# particle_data[:,8+3*3] += np.random.normal(scale=10, size=(num_particles, ))
 
+	# np.save('particle_data',particle_data)
 	likelihoods = ms.get_likelihood(image, particle_data)
+	# np.save('likelihood2',likelihoods)
 
 	# L = ms.likelihood.T.ravel()
 	particle_rotations = np.hstack((particle_data[:,4::3], particle_data[:,5::3]))

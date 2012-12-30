@@ -47,8 +47,8 @@ class MyModel(object):
 def run_randomwalk_fixednoise_sideinfo(cutoff):
     # load data and sideinfo
     data = load_behavior_data(datapath,200,"images")[5:] # 680-800 also good
-    data = np.array([np.rot90(i) for i in data])
-    data /= 354.0
+    data = np.array([image.T[::-1,:].astype('float32') for image in data])/354.0
+    # np.save('data',data)
 
     xy = load_behavior_data(datapath,200,'centroid')[5:]
     theta = load_behavior_data(datapath,200,'angle')[5:]
@@ -73,20 +73,20 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
         expandedpose[:,:3] = pose[:,:3]
         expandedpose[:,7::3] = pose[:,3::2] # y angles
         expandedpose[:,8::3] = pose[:,4::2] # z angles
-        return ms.get_likelihood(im,expandedpose)
+        # np.save('expandedpose',expandedpose)
+        likelihood = ms.get_likelihood(im,expandedpose)
+        # np.save('likelihood',likelihood)
+        return likelihood
 
     # set up particle business
-    # xytheta_noisechol = np.diag( (3.,3.,3.,) )
-    # joints_noisechol = np.diag( (10.,)*(2*8) )
-
-    noisechol = np.diag( (1.,)*2 + (5.,) + (10.,)*(2*8) )
+    noisechol = np.diag( (1.,)*2 + (1.,) + (10.,)*(2*8) )
 
     initial_pose = np.zeros(3+2*8)
     initial_pose[3::2] = rot[0,1:,1] # y angles
     initial_pose[4::2] = rot[0,1:,2] # z angles
 
-    np.save('initialpose',initial_pose) # TODO remove
-    np.save('rot',rot)
+    # np.save('initialpose',initial_pose) # TODO remove
+    # np.save('rot',rot)
 
     initial_particles = [
             pf.AR(
@@ -100,8 +100,8 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
 
     # loop!!!
     particlefilter.step(data[0])
-    noisechol[3:,3:] = np.diag( (10.,) * (2*8) )
-    for i in progprint_xrange(1,3):
+    noisechol[3:,3:] = np.diag( (1.,) * (2*8) )
+    for i in progprint_xrange(1,30):
     # for i in progprint_xrange(1,data.shape[0]):
         particlefilter.step(data[i])
 
@@ -136,6 +136,8 @@ def expand(tracks,expandedpose):
 
 ms = None
 def get_trackplotter(track):
+    track = np.array(track,ndmin=2)
+
     global ms
     if ms is None:
         numRows, numCols = (1,1)
@@ -144,8 +146,8 @@ def get_trackplotter(track):
                 numCols=numCols, numRows=numRows, useFramebuffer=True)
         ms.gl_init()
 
-    images = load_behavior_data(datapath,track.shape[0]+5,'images').astype('float32')[5:]/354.0
-    images = np.array([np.rot90(i) for i in images])
+    images = load_behavior_data(datapath,track.shape[0]+5,'images').astype('float32')[5:]
+    images = np.array([image.T[::-1,:].astype('float32') for image in images])/354.0
 
     def plotter(timeindex):
         plt.interactive(True)
