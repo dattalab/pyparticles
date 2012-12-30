@@ -37,9 +37,6 @@ class MouseScene(object):
 		self.debug = debug
 		self.showTiming = showTiming
 
-		assert np.mod(self.num_mice, 256) == 0, \
-			"Number of mice must be a multiple of 1024"
-
 		self.width = self.mouse_width*numCols
 		self.height = self.mouse_height*numRows
 		self.scale = scale
@@ -651,14 +648,12 @@ class MouseScene(object):
 					"New image must be shape of old image (%d, %d)" % (self.mouse_width, self.mouse_height)
 		self.mouse_img =  new_img
 
-		# Check the number of particles (must be a multiple of num_mice)
+		# Check the number of particles
 		num_particles, num_vars = particle_data.shape
-		assert np.mod(num_particles, self.num_mice) == 0, \
-					"Number of particles must be a multiple of the number of mice (%d)" % (self.num_mice)
 
 		# If we have more particles than mice, 
 		# we'll have to do multiple rendering passes to get all the likelihoods
-		num_passes = int(num_particles / self.num_mice)
+		num_passes = int(np.ceil(num_particles / self.num_mice))
 
 
 		# Here we extract the parameters from the particle_data, 
@@ -676,12 +671,13 @@ class MouseScene(object):
 		if return_posed_mice:
 			posed_mice = np.zeros((num_particles, self.mouse_height, self.mouse_width), dtype='float32')
 
+		this_particle_data = np.zeros((self.num_mice,num_vars))
 		for i in range(num_passes):
 
 			# Slice out our current particles to render
 			start = i*self.num_mice
 			end = start+self.num_mice
-			this_particle_data = particle_data[start:end]
+			this_particle_data[:] = particle_data[start:end]
 
 			# Set the position and angle offsets
 			self.offset_x = this_particle_data[:,0] - x

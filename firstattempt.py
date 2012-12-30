@@ -136,6 +136,7 @@ def expand(tracks,expandedpose):
     return expanded
 
 ms = None
+# TODO clean this thing up
 def get_trackplotter(track):
     track = np.array(track,ndmin=2)
 
@@ -147,12 +148,17 @@ def get_trackplotter(track):
                 numCols=numCols, numRows=numRows, useFramebuffer=True)
         ms.gl_init()
 
+    xy = load_behavior_data(datapath,200,'centroid')[5:]
+    theta = load_behavior_data(datapath,200,'angle')[5:]
+    xytheta = np.concatenate((xy,theta[:,na]),axis=1)
+
     images = load_behavior_data(datapath,track.shape[0]+5,'images').astype('float32')[5:]
     images = np.array([image.T[::-1,:].astype('float32') for image in images])/354.0
 
     def plotter(timeindex):
         plt.interactive(True)
-        ms.get_likelihood(images[timeindex],track[na,timeindex])
+        ms.get_likelihood(images[timeindex],particle_data=track[na,timeindex],
+                x=xytheta[timeindex,0],y=xytheta[timeindex,1],theta=xytheta[timeindex,2])
         plt.imshow(np.hstack((ms.mouse_img, ms.posed_mice[0])))
 
     return plotter
@@ -166,4 +172,5 @@ if __name__ == '__main__':
     res, expandedpose = run_randomwalk_fixednoise_sideinfo(500)
     np.save('top5tracks',expand([p.track for p in topk(res.particles,res.weights_norm,5)],expandedpose))
     np.save('meantrack',np.squeeze(expand(meantrack(res.particles,res.weights_norm),expandedpose)))
+    # TODO plot neff history
 
