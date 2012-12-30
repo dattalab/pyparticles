@@ -10,8 +10,8 @@ from OpenGL.GL.ARB.draw_instanced import *
 from OpenGL.GL.ARB.texture_buffer_object import *
 from OpenGL.GL.framebufferobjects import *
 
-from OpenGL.GL.ARB.transform_feedback3 import *
-from OpenGL.GL.ARB.transform_feedback2 import *
+# from OpenGL.GL.ARB.transform_feedback3 import *
+# from OpenGL.GL.ARB.transform_feedback2 import *
 from OpenGL.GL.EXT.transform_feedback import *
 
 from pylab import *
@@ -172,10 +172,6 @@ class MouseScene(object):
 		# Tiling parameters
 		numCols = self.numCols
 		numRows = self.numRows
-
-		print glInitTransformFeedbackEXT()
-		print bool(glBeginTransformFeedbackEXT)
-		print bool(glTransformFeedbackVaryingsEXT)
 
 		# Timing
 		thistime = time.time()
@@ -502,7 +498,6 @@ class MouseScene(object):
 		print("Version: %s\n" % glGetString (GL_VERSION));
 		print("GLSL: %s\n" % glGetString (GL_SHADING_LANGUAGE_VERSION));
 
-
 		# Setup our VBOs and shaders
 		self.setup_vbos()
 		self.update_vertex_mesh()
@@ -514,7 +509,7 @@ class MouseScene(object):
 
 
 if __name__ == '__main__':
-	scenefile = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/mouse_mesh_low_poly.npz"
+	scenefile = "data/mouse_mesh_low_poly.npz"
 	ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
 								scale = 2.5, \
 								numCols=10, numRows=10, useFramebuffer=False)

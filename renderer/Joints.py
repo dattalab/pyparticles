@@ -68,7 +68,7 @@ class Joint(object):
 
 	def calc_skinning_matrix(self):
 		self.M = np.dot(self.Bi,self.W)
-
+		
 	def get_position(self):
 		return np.array(np.dot(np.r_[0., 0., 0., 1], self.W))
 

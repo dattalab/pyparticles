@@ -9,6 +9,7 @@ from OpenGL.arrays import vbo
 from OpenGL.GL.ARB.draw_instanced import *
 from OpenGL.GL.ARB.texture_buffer_object import *
 from OpenGL.GL.framebufferobjects import *
+from OpenGL.GL.EXT.transform_feedback import *
 
 import transformations as tr
 import time
@@ -601,6 +602,22 @@ class MouseScene(object):
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
+	def setup_transformfeedback(self):
+		import ctypes as c 
+		self.transformFeedbackBuffer = glGenBuffers(1)
+		glBindBuffer(GL_ARRAY_BUFFER, self.transformFeedbackBuffer)
+		glBufferData(GL_ARRAY_BUFFER, 1024, None, GL_DYNAMIC_DRAW)
+
+		glBindBufferBaseEXT(GL_TRANSFORM_FEEDBACK_BUFFER_EXT, 0, self.transformFeedbackBuffer)
+
+		# Learned this crazy trick from
+		# https://groups.google.com/group/pyglet-users/tree/browse_frm/month/2008-2/3d2fbc1f8dc29e33?rnum=301&start=250&_done=/group/pyglet-users/browse_frm/month/2008-2?start%3D250%26sa%3DN%26&pli=1
+		buff = c.create_string_buffer("gl_Position") 
+		c_text = c.cast(c.pointer(c.pointer(buff)), c.POINTER(c.POINTER(GLchar))) 
+
+		glTransformFeedbackVaryingsEXT(self.shaderProgram, 1, c_text, GL_INTERLEAVED_ATTRIBS_EXT)
+
+
 	def gl_init(self):
 
 		glutInit([])
@@ -629,6 +646,7 @@ class MouseScene(object):
 		self.update_vertex_mesh()
 		self.setup_shaders()
 		self.setup_texture()
+		self.setup_transformfeedback()
 		if self.useFramebuffer:
 			self.setup_fbo()
 
@@ -729,6 +747,7 @@ def test_single_mouse():
 
 	# Get the base, unposed, rotations
 	rot = ms.get_joint_rotations().copy()
+
 	# Tile it so it's the same size as the number of particles
 	num_passes = int(num_particles / ms.num_mice)
 	rot = np.tile(rot, (num_passes, 1, 1))
@@ -805,12 +824,12 @@ def test_single_mouse():
 
 if __name__ == '__main__':
 	
-	useFramebuffer = True
+	useFramebuffer = False
 	if not useFramebuffer:
 		scenefile = "data/mouse_mesh_low_poly.npz"
 		ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
 									scale = 2.1, \
-									numCols=64, numRows=64, useFramebuffer=useFramebuffer)
+									numCols=16, numRows=16, useFramebuffer=useFramebuffer)
 		ms.gl_init()
 		glutMainLoop()
 	else:
