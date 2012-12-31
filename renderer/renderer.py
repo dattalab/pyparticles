@@ -37,9 +37,6 @@ class MouseScene(object):
 		self.debug = debug
 		self.showTiming = showTiming
 
-		assert np.mod(self.num_mice, 256) == 0, \
-			"Number of mice must be a multiple of 1024"
-
 		self.width = self.mouse_width*numCols
 		self.height = self.mouse_height*numRows
 		self.scale = scale
@@ -651,14 +648,12 @@ class MouseScene(object):
 					"New image must be shape of old image (%d, %d)" % (self.mouse_width, self.mouse_height)
 		self.mouse_img =  new_img
 
-		# Check the number of particles (must be a multiple of num_mice)
+		# Check the number of particles
 		num_particles, num_vars = particle_data.shape
-		assert np.mod(num_particles, self.num_mice) == 0, \
-					"Number of particles must be a multiple of the number of mice (%d)" % (self.num_mice)
 
 		# If we have more particles than mice, 
 		# we'll have to do multiple rendering passes to get all the likelihoods
-		num_passes = int(num_particles / self.num_mice)
+		num_passes = int(np.ceil(num_particles / self.num_mice))
 
 
 		# Here we extract the parameters from the particle_data, 
@@ -676,12 +671,13 @@ class MouseScene(object):
 		if return_posed_mice:
 			posed_mice = np.zeros((num_particles, self.mouse_height, self.mouse_width), dtype='float32')
 
+		this_particle_data = np.zeros((self.num_mice,num_vars))
 		for i in range(num_passes):
 
 			# Slice out our current particles to render
 			start = i*self.num_mice
 			end = start+self.num_mice
-			this_particle_data = particle_data[start:end]
+			this_particle_data[:] = particle_data[start:end]
 
 			# Set the position and angle offsets
 			self.offset_x = this_particle_data[:,0] - x
@@ -707,19 +703,20 @@ class MouseScene(object):
 			return all_likelihoods
 
 def test_single_mouse():
+	# path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
+	path_to_behavior_data = "/Users/mattjj/Dropbox/Test Data/"
+	# which_img = 731
+	which_img = 5
 	from load_data import load_behavior_data
-
-	path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
-	which_img = 731
-	
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
 	image /= 354.0;
+	# np.save('data2',image)
 
 	num_particles = 32**2
-	numCols = 16
-	numRows = 16
-	scenefile = "data/mouse_mesh_low_poly.npz"
+	numCols = int(np.sqrt(num_particles))
+	numRows = numCols
+	scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly.npz")
 
 	useFramebuffer = True
 	ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
@@ -751,11 +748,13 @@ def test_single_mouse():
 	particle_data[1:,7::3] += np.random.normal(scale=10, size=(num_particles-1, ms.num_bones-1))
 	particle_data[1:,8::3] += np.random.normal(scale=10, size=(num_particles-1, ms.num_bones-1))
 
+	# np.save('particle_data',particle_data)
 	likelihoods, posed_mice = ms.get_likelihood(image, \
 						x=position_val, y=position_val, \
 						theta=theta_val, \
 						particle_data=particle_data,
 						return_posed_mice=True)
+	# np.save('likelihood2',likelihoods)
 
 	# L = ms.likelihood.T.ravel()
 	particle_rotations = np.hstack((particle_data[:,4::3], particle_data[:,5::3]))
@@ -821,3 +820,4 @@ if __name__ == '__main__':
 		# 										size=(self.num_mice, self.num_bones, 2))
 		# 	ms.display()
 		# 	ms.rotations = old_rotations
+		plt.show()
