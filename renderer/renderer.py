@@ -9,6 +9,7 @@ from OpenGL.arrays import vbo
 from OpenGL.GL.ARB.draw_instanced import *
 from OpenGL.GL.ARB.texture_buffer_object import *
 from OpenGL.GL.framebufferobjects import *
+from mako.template import Template
 
 import transformations as tr
 import time
@@ -62,6 +63,7 @@ class MouseScene(object):
 
 		# Find the vertex with the maximum number of joints influencing it
 		self.num_joint_influences =  (joint_weights>0).sum(1).max()
+		print self.num_joint_influences
 		self.num_bones = num_joints
 
 		# Save a list of all of the rotations of all the mice to be displayed
@@ -140,16 +142,21 @@ class MouseScene(object):
 		# vertex weights: per-bone weight
 		# joint index: which joint each weight correspond to
 
-		num_elements_per_coord = self.vertices.shape[1]-1 + \
-									self.num_joint_influences + \
-									self.num_joint_influences		
-		# vert_data = np.zeros((self.num_vertices, num_elements_per_coord), dtype='float32')
-
 		# Calculate the indices of the non-zero joint weights
+		# In the process, if we have vertices that have less
+		# than the maximum number of joint influences,
+		# we'll have to add in dummy joints that have no influence.
+		# (this greatly simplifies things in the shader code)
 		joint_idx = np.zeros((self.num_vertices, self.num_joint_influences), dtype='int')
 		nonzero_joint_weights = np.zeros((self.num_vertices, self.num_joint_influences), dtype='float32')
+
 		for i in range(self.num_vertices):
-			joint_idx[i,:] = np.argwhere(self.skin.joint_weights[i,:] > 0).ravel()
+			idx = np.argwhere(self.skin.joint_weights[i,:] > 0).ravel()
+			if len(idx) != self.num_joint_influences:
+				num_to_add = self.num_joint_influences - len(idx)
+				joints_to_add = np.setdiff1d(range(self.num_bones), idx)[:num_to_add]
+				idx = np.hstack((idx, joints_to_add))
+			joint_idx[i] = idx
 			nonzero_joint_weights[i,:] = self.skin.joint_weights[i,joint_idx[i,:]]
 
 		self.vert_data = np.hstack((self.vertices[:,:3], nonzero_joint_weights, joint_idx)).astype('float32')
@@ -261,10 +268,10 @@ class MouseScene(object):
 		glEnableClientState(GL_VERTEX_ARRAY)
 		glVertexPointer(3, GL_FLOAT, stride, self.mesh_vbo)
 		glVertexAttribPointer(self.joint_weights_location,
-						4, GL_FLOAT, 
+						self.num_joint_influences, GL_FLOAT, 
 						False, stride, self.mesh_vbo+3*4)
 		glVertexAttribPointer(self.joint_indices_location,
-						4, GL_FLOAT, 
+						self.num_joint_influences, GL_FLOAT, 
 						False, stride, self.mesh_vbo+3*4+self.num_joint_influences*4)
 
 		# Figure out what our offsets are going to be
@@ -281,8 +288,8 @@ class MouseScene(object):
 		# which means we'd like to see a bunch of random poses.
 		if not self.useFramebuffer:
 			old_rotations = np.copy(self.rotations)
-			self.rotations[:,:,1:] += np.random.normal(scale=10,
-												size=(self.num_mice, self.num_bones, 2))
+			self.rotations[:,1:,1:] += np.random.normal(scale=20,
+												size=(self.num_mice, self.num_bones-1, 2))
 
 		# Okay, this is where the drawing actually happens.
 		# For now, we're drawing each mouse separately.
@@ -360,7 +367,7 @@ class MouseScene(object):
 			print 'Missing Shader Objects!'
 			sys.exit(1)
 
-		vertexShader = shaders.compileShader("""
+		vertexShaderString = """
 		#version 120
 		// Application to vertex shader
 		varying vec4 vertex_color;
@@ -368,15 +375,15 @@ class MouseScene(object):
 		uniform float offsety;
 		uniform float scale;
 
-		uniform vec3 rotation[9]; // rotations on each joint
-		uniform vec3 translation[9]; // translations of each joint from the previous
-		uniform mat4 bindingMatrixInverse[9]; // the inverse binding matrix
-		attribute vec3 joint_weights;
-		attribute vec3 joint_indices;
+		uniform vec3 rotation[${num_joints}]; // rotations on each joint
+		uniform vec3 translation[${num_joints}]; // translations of each joint from the previous
+		uniform mat4 bindingMatrixInverse[${num_joints}]; // the inverse binding matrix
+		attribute vec4 joint_weights;
+		attribute vec4 joint_indices;
 
 		mat4 lastJointWorldMatrix = mat4(1.0);
 		mat4 jointWorldMatrix = mat4(1.0);
-		mat4[9] posingMatrix;
+		mat4[${num_joints}] posingMatrix;
 		mat4 localRotation = mat4(1.0);
 
 
@@ -416,28 +423,23 @@ class MouseScene(object):
 			return Tout;
 		}
 
-		mat4 mat_at_i(mat4 A[9], int the_index) {
+		mat4 mat_at_i(mat4 A[${num_joints}], int the_index) {
 			if (the_index == 0) { return A[0]; }
-			else if (the_index == 1) { return A[1]; }
-			else if (the_index == 2) { return A[2]; }
-			else if (the_index == 3) { return A[3]; }
-			else if (the_index == 4) { return A[4]; }
-			else if (the_index == 5) { return A[5]; }
-			else if (the_index == 6) { return A[6]; }
-			else if (the_index == 7) { return A[7]; }
-			else if (the_index == 8) { return A[8]; }
+
+			% for i in range(num_joints):
+
+			else if (the_index == ${i}) { return A[${i}]; }
+
+			% endfor
+			
 		}
 
-		mat4[9] set_mat_at_i(mat4 A[9], mat4 B, int the_index) {
+		mat4[${num_joints}] set_mat_at_i(mat4 A[${num_joints}], mat4 B, int the_index) {
 			if (the_index == 0) { A[0] = B; return A; }
-			else if (the_index == 1) { A[1] = B; return A; }
-			else if (the_index == 2) { A[2] = B; return A; }
-			else if (the_index == 3) { A[3] = B; return A; }
-			else if (the_index == 4) { A[4] = B; return A; }
-			else if (the_index == 5) { A[5] = B; return A; }
-			else if (the_index == 6) { A[6] = B; return A; }
-			else if (the_index == 7) { A[7] = B; return A; }
-			else if (the_index == 8) { A[8] = B; return A; }
+
+			% for i in range(num_joints):
+			else if (the_index == ${i}) { A[${i}] = B; return A; }
+			% endfor
 		}
 		
 		void main()
@@ -453,69 +455,34 @@ class MouseScene(object):
 			// on Apple graphics hardware. It is absolutely ridiculous. 
 			// I might consider using string templating in the future.
 
-			
+			% for i in range(num_joints):
+
 			// Calculate a joint's local rotation matrix
-			localRotation = calcLocalRotation(rotation[0], translation[0]);
+			localRotation = calcLocalRotation(rotation[${i}], translation[${i}]);
 		
 			// Calculate its world position
 			jointWorldMatrix = localRotation*lastJointWorldMatrix;
 			
 			// Multiply the inverse binding matrix into the world matrix
-			posingMatrix[0] = bindingMatrixInverse[0] * jointWorldMatrix;
+			posingMatrix[${i}] = bindingMatrixInverse[${i}] * jointWorldMatrix;
 		
 			// Get ready for the next iteration
 			lastJointWorldMatrix = jointWorldMatrix;
 
-
-			// Now, repeat it another 8 times, with no loop.
-			localRotation = calcLocalRotation(rotation[1], translation[1]);
-			jointWorldMatrix = localRotation*lastJointWorldMatrix;
-			posingMatrix[1] = bindingMatrixInverse[1] * jointWorldMatrix;
-			lastJointWorldMatrix = jointWorldMatrix;
-
-			localRotation = calcLocalRotation(rotation[2], translation[2]);
-			jointWorldMatrix = localRotation*lastJointWorldMatrix;
-			posingMatrix[2] = bindingMatrixInverse[2] * jointWorldMatrix;
-			lastJointWorldMatrix = jointWorldMatrix;
-
-			localRotation = calcLocalRotation(rotation[3], translation[3]);
-			jointWorldMatrix = localRotation*lastJointWorldMatrix;
-			posingMatrix[3] = bindingMatrixInverse[3] * jointWorldMatrix;
-			lastJointWorldMatrix = jointWorldMatrix;
-
-			localRotation = calcLocalRotation(rotation[4], translation[4]);
-			jointWorldMatrix = localRotation*lastJointWorldMatrix;
-			posingMatrix[4] = bindingMatrixInverse[4] * jointWorldMatrix;
-			lastJointWorldMatrix = jointWorldMatrix;
-
-			localRotation = calcLocalRotation(rotation[5], translation[5]);
-			jointWorldMatrix = localRotation*lastJointWorldMatrix;
-			posingMatrix[5] = bindingMatrixInverse[5] * jointWorldMatrix;
-			lastJointWorldMatrix = jointWorldMatrix;
-
-			localRotation = calcLocalRotation(rotation[6], translation[6]);
-			jointWorldMatrix = localRotation*lastJointWorldMatrix;
-			posingMatrix[6] = bindingMatrixInverse[6] * jointWorldMatrix;
-			lastJointWorldMatrix = jointWorldMatrix;
-
-			localRotation = calcLocalRotation(rotation[7], translation[7]);
-			jointWorldMatrix = localRotation*lastJointWorldMatrix;
-			posingMatrix[7] = bindingMatrixInverse[7] * jointWorldMatrix;
-			lastJointWorldMatrix = jointWorldMatrix;
-
-			localRotation = calcLocalRotation(rotation[8], translation[8]);
-			jointWorldMatrix = localRotation*lastJointWorldMatrix;
-			posingMatrix[8] = bindingMatrixInverse[8] * jointWorldMatrix;
-			lastJointWorldMatrix = jointWorldMatrix;
+			% endfor
 
 
 			// Calculate a joint's local rotation matrix
 			vec4 vertex = vec4(0., 0., 0., 0.0);
-			int index;			
-			for (int i=0; i < 3; ++i) {
-				index = int(joint_indices[i]);
-				vertex += joint_weights[i] * gl_Vertex * mat_at_i(posingMatrix, index);
-			}
+			int index;
+
+			% for i in range(num_joint_influences):
+
+			index = int(joint_indices[${i}]);
+			vertex += joint_weights[${i}] * gl_Vertex * mat_at_i(posingMatrix, index);
+
+			% endfor
+
 			vertex.xyz *= scale;
 
 			vertex[0] = vertex[0]+offsetx;
@@ -525,12 +492,17 @@ class MouseScene(object):
 			gl_Position = gl_ModelViewProjectionMatrix * vertex;
 
 			// Pass on the vertex color 
-			float the_color = (vertex[1]/(7.0*scale))*0.8 + 0.2;
+			float the_color = (vertex[1]/(2.5*scale))*0.8 + 0.2;
 			vertex_color = vec4(the_color, the_color, the_color, 1.0);
 
 		}
 
-		""", GL_VERTEX_SHADER)
+		"""
+
+		makoTemplate = Template(vertexShaderString)
+		vertexShaderString = makoTemplate.render(num_joints=self.num_bones,\
+									num_joint_influences=self.num_joint_influences)
+		vertexShader = shaders.compileShader(vertexShaderString, GL_VERTEX_SHADER)
 		
 		fragmentShader = shaders.compileShader("""
 		#version 120
@@ -703,8 +675,8 @@ class MouseScene(object):
 			return all_likelihoods
 
 def test_single_mouse():
-	# path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
-	path_to_behavior_data = "/Users/mattjj/Dropbox/Test Data/"
+	path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
+	# path_to_behavior_data = "/Users/mattjj/Dropbox/Test Data/"
 	# which_img = 731
 	which_img = 5
 	from load_data import load_behavior_data
@@ -731,7 +703,7 @@ def test_single_mouse():
 	rot = np.tile(rot, (num_passes, 1, 1))
 
 	# Fill in some particle data
-	particle_data = np.zeros((num_particles, 3+9*3))
+	particle_data = np.zeros((num_particles, 3+self.num_bones*3))
 	particle_data[:,3::3] = rot[:,:,0]
 	particle_data[:,4::3] = rot[:,:,1]
 	particle_data[:,5::3] = rot[:,:,2]
@@ -804,12 +776,12 @@ def test_single_mouse():
 
 if __name__ == '__main__':
 	
-	useFramebuffer = True
+	useFramebuffer = False
 	if not useFramebuffer:
-		scenefile = "data/mouse_mesh_low_poly.npz"
+		scenefile = "data/mouse_mesh_low_poly2.npz"
 		ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
-									scale = 2.1, \
-									numCols=64, numRows=64, useFramebuffer=useFramebuffer)
+									scale = 20, \
+									numCols=10, numRows=10, useFramebuffer=useFramebuffer)
 		ms.gl_init()
 		glutMainLoop()
 	else:
