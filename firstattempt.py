@@ -11,60 +11,84 @@ import predictive_distributions as pd
 import particle_filter as pf
 from util.text import progprint_xrange
 
+# TODO factor out 3+2*9, think about a concise spec for particlefilter setup
+
+################
+#  parameters  #
+################
+
+# experiment parameters
 datapath = "/Users/mattjj/Dropbox/Test Data/"
+frame_indices = (5,180)
 scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
 
-MyModel2 = lambda xytheta_noisechol, joints_noisechol: \
+# computation parameters
+msNumRows, msNumCols = (32,32)
+num_particles = msNumRows*msNumCols*5
+
+####################
+#  global objects  #
+####################
+
+# these global objects are shared for several purposes and convenient for
+# interactive access. making them lazily loaded provides fast importing
+
+ms = None # MouseScene object, global so that it's only built once
+xytheta = images = None # offset sideinfo sequence and image sequence
+
+def _build_mousescene():
+    global ms
+    if ms is None:
+        ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
+                # or 2.0
+                scale = 1.75, \
+                numCols=msNumCols, numRows=msNumRows, useFramebuffer=True,showTiming=False)
+        ms.gl_init()
+
+def _load_data_and_sideinfo():
+    global xytheta, images
+    if xytheta is None or images is None:
+        xy = load_behavior_data(datapath,sum(frame_indices),'centroid')[frame_indices[0]:]
+        theta = load_behavior_data(datapath,sum(frame_indices),'angle')[frame_indices[0]:]
+        xytheta = np.concatenate((xy,theta[:,na]),axis=1)
+        images = load_behavior_data(datapath,sum(frame_indices),'images').astype('float32')[frame_indices[0]:]
+        images = np.array([image.T[::-1,:].astype('float32') for image in images])/354.0
+
+##################################
+#  log_likelihood and rendering  #
+##################################
+
+def _expand_poses(poses):
+    expandedposes = np.zeros((poses.shape[0],3+3*9))
+    expandedposes[:,3::3] = ms.get_joint_rotations()[0,:,0] # x angles are fixed
+    expandedposes[:,:3] = poses[:,:3] # copy in xytheta
+    expandedposes[:,4::3] = poses[:,3::2] # copy in y angles
+    expandedposes[:,5::3] = poses[:,4::2] # copy in z angles
+
+def log_likelihood(stepnum,im,poses):
+    _build_mousescene(), _load_data_and_sideinfo()
+    return ms.get_likelihood(im,particle_data=_expand_poses(poses),
+            x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])
+
+def render(stepnum,poses):
+    _build_mousescene(), _load_data_and_sideinfo()
+    return ms.get_likelihood(np.zeros((msNumRows,msNumCols)),particle_data=_expand_poses(poses),
+            x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2],
+            return_posed_mice=True)[1]
 
 def run_randomwalk_fixednoise_sideinfo(cutofffactor):
-    # load data and sideinfo
-    data = load_behavior_data(datapath,200,"images")[5:] # 680-800 also good
-    data = np.array([image.T[::-1,:].astype('float32') for image in data])/354.0
-    # np.save('data',data)
+    _build_mousescene()
+    initial_pose = np.zeros(3+2*9)
+    initial_pose[3::2] = ms.get_joint_rotations()[0,:,1] # y angles
+    initial_pose[4::2] = ms.get_joint_rotations()[0,:,2] # z angles
 
-    xy = load_behavior_data(datapath,200,'centroid')[5:]
-    theta = load_behavior_data(datapath,200,'angle')[5:]
-    xytheta = np.concatenate((xy,theta[:,na]),axis=1)
-
-    # make mousescene object
-    numRows, numCols = (32,32)
-    num_particles = numRows*numCols*10
-    ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
-            # or 2.0
-            scale = 1.75, \
-            numCols=numCols, numRows=numRows, useFramebuffer=True,showTiming=False)
-    ms.gl_init()
-
-    rot = ms.get_joint_rotations().copy()
-
-    # set up likelihood
-    expandedpose = np.zeros((num_particles,3+3*9))
-    expandedpose[:,3::3] = rot[0,:,0] # x angles are fixed
-
-    def likelihood(stepnum,im,pose):
-        expandedpose[:,:3] = pose[:,:3] # copy in xytheta
-        expandedpose[:,4::3] = pose[:,3::2] # copy in y angles
-        expandedpose[:,5::3] = pose[:,4::2] # copy in z angles
-        # np.save('expa5dedpose',expandedpose)
-        likelihood = ms.get_likelihood(im,particle_data=expandedpose,
-                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])
-        # np.save('likelihood',likelihood)
-        return likelihood
-
-    # set up particle business
-    # noisechol = np.diag( (1.,)*2 + (1.,) + (10.,)*(2*9) )
     xytheta_noisechol = np.diag( (1e-3,)*2 + (1e-3,) )
     joints_noisechol = np.diag( (10.,10.) + (10.,)*(2*8) )
-
-    initial_pose = np.zeros(3+2*9)
-    initial_pose[3::2] = rot[0,:,1] # y angles
-    initial_pose[4::2] = rot[0,:,2] # z angles
 
     initial_particles = [
             pf.AR(
                     numlags=1,
                     previous_outputs=(initial_pose,),
-                    # baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol))
                     baseclass=lambda: \
                         pm.Concatenation(
                             components=(
@@ -78,15 +102,16 @@ def run_randomwalk_fixednoise_sideinfo(cutofffactor):
             ) for itr in range(num_particles)]
 
     # create particle filter
-    particlefilter = pf.ParticleFilter(3+2*9,num_particles/cutofffactor,likelihood,initial_particles)
+    particlefilter = pf.ParticleFilter(3+2*9,num_particles/cutofffactor,log_likelihood,initial_particles)
 
     # loop!!!
-    particlefilter.step(data[0],sideinfo=xytheta[0])
+    # TODO make this first step prettier, use change_num_particles
+    particlefilter.step(images[0],sideinfo=xytheta[0])
     xytheta_noisechol[:,:] = np.diag( (1e-2,)*2 + (1e-2,) )
-    joints_noisechol[:,:] = np.diag( (3.,3.) + (3.,) * (2*8) ) # TODO make this first step prettier
+    joints_noisechol[:,:] = np.diag( (3.,3.) + (3.,) * (2*8) )
     for i in progprint_xrange(1,18):
     # for i in progprint_xrange(1,data.shape[0]):
-        particlefilter.step(data[i],sideinfo=xytheta[i])
+        particlefilter.step(images[i],sideinfo=xytheta[i])
 
     return particlefilter, expandedpose[0]
 
@@ -104,6 +129,7 @@ def meantrack(particles,weights):
         track += np.array(p.track) * w
     return track
 
+# TODO this is redundant with other expand function
 def expand(tracks,expandedpose):
     tracks = np.array(tracks,ndmin=3)
     expanded = np.zeros((tracks.shape[0],tracks.shape[1],expandedpose.shape[0]))
@@ -116,43 +142,6 @@ def expand(tracks,expandedpose):
     expanded[:,:,4::3] = tracks[:,:,3::2]
     expanded[:,:,5::3] = tracks[:,:,4::2]
     return expanded
-
-ms = None
-# TODO clean this thing up
-def get_trackplotter(track):
-    plt.interactive(True)
-    track = np.array(track,ndmin=2)
-
-    global ms
-    if ms is None:
-        numRows, numCols = (1,1)
-        ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
-                scale = 1.75, \
-                numCols=numCols, numRows=numRows, useFramebuffer=True, showTiming=False)
-        ms.gl_init()
-
-    xy = load_behavior_data(datapath,200,'centroid')[5:]
-    theta = load_behavior_data(datapath,200,'angle')[5:]
-    xytheta = np.concatenate((xy,theta[:,na]),axis=1)
-
-    images = load_behavior_data(datapath,track.shape[0]+5,'images').astype('float32')[5:]
-    images = np.array([image.T[::-1,:].astype('float32') for image in images])/354.0
-
-    fig = plt.figure()
-    plt.subplot(2,1,1)
-    plt.plot(track[:,0],track[:,1],'b.-',label='particle track')
-    plt.plot(xy[:,0],xy[:,1],'r.-',label='sideinfo track')
-    plt.legend()
-
-    def plotter(timeindex):
-        plt.figure(fig.number)
-        plt.subplot(2,1,2)
-        ms.get_likelihood(images[timeindex],particle_data=track[na,timeindex],
-                x=xytheta[timeindex,0],y=xytheta[timeindex,1],theta=xytheta[timeindex,2])
-        plt.imshow(np.hstack((ms.mouse_img, ms.posed_mice[0])))
-
-    return plotter
-
 
 ##########
 #  main  #
