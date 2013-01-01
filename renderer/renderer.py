@@ -1,3 +1,5 @@
+from __future__ import division
+
 import numpy as np
 
 from OpenGL.GL import *
@@ -15,12 +17,14 @@ import transformations as tr
 import time
 import Joints
 
+
 from pylab import *
 
 class MouseScene(object):
 	"""A class containing methods for drawing a skinned polygon mesh
 	as quickly as possible."""
-	def __init__(self, scenefile, scale = 4.0, \
+	def __init__(self, scenefile, \
+						scale_width = 4.0, scale_height = 4.0, scale_length = 4.0, \
 						mouse_width=640, mouse_height=480, \
 						numCols=32, numRows=32, useFramebuffer=False, \
 						debug=False, showTiming=True):
@@ -40,7 +44,23 @@ class MouseScene(object):
 
 		self.width = self.mouse_width*numCols
 		self.height = self.mouse_height*numRows
-		self.scale = scale
+		if isscalar(scale_width):
+			self.scale_width = np.repeat(scale_width, self.num_mice, axis=0)
+		else:
+			self.scale_width = scale_width
+			assert len(self.scale_width) == self.num_mice, "Must have a scale value per mouse"
+
+		if isscalar(scale_height):
+			self.scale_height = np.repeat(scale_height, self.num_mice, axis=0)
+		else:
+			self.scale_height = scale_height
+			assert len(self.scale_height) == self.num_mice, "Must have a scale value per mouse"
+		if isscalar(scale_length):
+			self.scale_length = np.repeat(scale_length, self.num_mice, axis=0)
+		else:
+			self.scale_length = scale_length
+			assert len(self.scale_length) == self.num_mice, "Must have a scale value per mouse"
+
 		self.useFramebuffer = useFramebuffer
 
 		self.scenefile = scenefile
@@ -73,10 +93,11 @@ class MouseScene(object):
 				self.rotations[i,j,:] = joint_rotations[j]
 
 		# Create rotation angles for each 
-		self.offset_theta = np.zeros((self.num_mice,), dtype='float32')
+		self.offset_theta_yaw = np.zeros((self.num_mice,), dtype='float32')
+		self.offset_theta_roll = np.zeros((self.num_mice,), dtype='float32')
 		self.offset_x = np.zeros((self.num_mice,), dtype='float32')
 		self.offset_y = np.zeros((self.num_mice,), dtype='float32')
-
+		self.offset_z = np.zeros((self.num_mice,), dtype='float32')
 
 		# Load up the joints properly into a joint chain
 		jointChain = Joints.LinearJointChain()
@@ -197,6 +218,8 @@ class MouseScene(object):
 	def on_reshape(self, this_width, this_height):
 		pass
 
+	def get_clipZ(self):
+		return np.max(self.scale_height)*2.0
 
 	def display(self):
 
@@ -226,10 +249,10 @@ class MouseScene(object):
 		xmax = self.mouse_width*(numCols-1) - xmin
 		ymin = -self.mouse_height/2.0
 		ymax = self.mouse_height*(numRows-1) - ymin
-		zmin = 20.*self.scale*4.0
-		zmax = -50.*self.scale*4.0
+		znear = self.get_clipZ()
+		zfar = 0.0
 
-		glOrtho(xmin, xmax, ymin, ymax, zmin, zmax)
+		glOrtho(xmin, xmax, ymin, ymax, znear, zfar)
 
 		# Prepare to draw the poly mesh
 		glMatrixMode(GL_MODELVIEW)
@@ -243,12 +266,12 @@ class MouseScene(object):
 
 		# Now, rotate to draw the mouse model
 		## Top-down projection
-		glRotate(-90, 1., 0., 0.)
 
-		## Skew to the side (if you want to view spine movement)
-		if self.lastkey == 'r':
-			glRotate(90, 1., 0., 0.)
-			glRotate(90, 0., 1., 0.)
+
+		# ## Skew to the side (if you want to view spine movement)
+		# if self.lastkey == 'r':
+		# 	glRotate(90, 1., 0., 0.)
+		# 	glRotate(90, 0., 1., 0.)
 
 		# Bind our VBOs		
 		self.mesh_vbo.bind()
@@ -277,37 +300,52 @@ class MouseScene(object):
 		# Figure out what our offsets are going to be
 		x = self.mouse_width*np.mod(np.arange(numCols*numRows),numCols) + self.offset_x
 		y = self.mouse_height*np.floor_divide(np.arange(numCols*numRows), numCols) + self.offset_y
-		theta = self.offset_theta
-
-		# How are we going to scale our mouse? For now, one scale
-		# for all displayed mice
-		# TODO: make scale settable per-mouse
-		scale_array = np.repeat(self.scale, numCols*numRows, axis=0)
+		z = self.offset_z
+		theta_yaw = self.offset_theta_yaw
+		theta_roll = self.offset_theta_roll
 
 		# If we're displaying to the screen, we're debugging,
 		# which means we'd like to see a bunch of random poses.
 		if not self.useFramebuffer:
 			old_rotations = np.copy(self.rotations)
-			self.rotations[:,1:,1:] += np.random.normal(scale=20,
-												size=(self.num_mice, self.num_bones-1, 2))
+			# self.rotations[:,1:,1:] += np.random.normal(scale=20,
+												# size=(self.num_mice, self.num_bones-1, 2))
 
 		# Okay, this is where the drawing actually happens.
 		# For now, we're drawing each mouse separately.
 		# This is expensive and stupid, but instanced drawing
 		# is a bit off.
 		# TODO: implement instanced drawing.
+		
+
 		for i in range(numCols*numRows):
 
+			glLoadIdentity()
+			glRotate(-90, 1., 0., 0.)
+			val = 0.0
+
 			# Send up the uniforms
-			glUniform1f(self.offsetx_location, x[i])
-			glUniform1f(self.offsety_location, y[i])
-			glUniform1f(self.scale_location, scale_array[i])
+			# glUniform1f(self.offsetx_location, x[i])
+			# glUniform1f(self.offsety_location, y[i])
+			glUniform1f(self.offsetz_location, z[i])
+			glUniform1f(self.scale_width_location, self.scale_width[i])
+			glUniform1f(self.scale_length_location, self.scale_length[i])
+			glUniform1f(self.scale_height_location, self.scale_height[i])
+			glUniform1f(self.theta_yaw_location, -theta_yaw[i])
+			glUniform1f(self.theta_roll_location, -theta_roll[i])
+			glUniform2fv(self.height_range_location, 1, (0.0, 10.0))
 			glUniform3fv(self.rotation_location, self.num_bones, self.rotations[i])
 			
 			# Rotate the mouse, and draw the mouse
-			glRotate(-theta[i], 0., 1., 0.)
+			glTranslate(x[i], 0.0, y[i])
+			
+			# glRotate(val, 0.0, 0.0, 1.0)
+			# glRotate(-theta[i], 0., 1., 0.)
+			
 			glDrawElements(GL_TRIANGLES, self.num_indices, GL_UNSIGNED_SHORT, self.index_vbo)
-			glRotate(theta[i], 0., 1., 0.)
+			# glRotate(theta[i], 0., 1., 0.)
+			# glRotate(-val, 0.0, 0.0, 1.0)
+			glTranslate(-x[i], 0.0, -y[i])
 
 		# Time for cleanup. Unbind the VBOs and disable draw modes.
 		self.mesh_vbo.unbind()
@@ -329,8 +367,14 @@ class MouseScene(object):
 		# and do our likelihood computations locally.
 		# The speedups to be gained here by moving it to the GPU 
 		# aren't super huge, as far as I'm aware.
-		data = glReadPixels(0,0,self.width,self.height, GL_RGB, GL_FLOAT)
-		data = data.ravel().reshape((self.height, self.width, 3))[:,:,0]
+
+		print glGetDoublev(GL_DEPTH_BIAS)
+		print glGetDoublev(GL_DEPTH_SCALE)
+
+		data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
+		# data = data.ravel().reshape((self.height, self.width, 1))[:,:,0]
+		data = data.ravel().reshape((self.height, self.width))
+		data = self.get_clipZ()*(1-data)
 		this_diff = (np.tile(self.mouse_img, (self.numRows, self.numCols)) - data)**2.0
 		likelihood = np.zeros((self.numRows, self.numCols), dtype='float32')
 		posed_mice = np.zeros((self.numRows*numCols, self.mouse_height, self.mouse_width), dtype='float32')
@@ -373,7 +417,13 @@ class MouseScene(object):
 		varying vec4 vertex_color;
 		uniform float offsetx;
 		uniform float offsety;
-		uniform float scale;
+		uniform float offsetz;
+		uniform float scale_width;
+		uniform float scale_height;
+		uniform float scale_length;
+		uniform float theta_yaw;
+		uniform float theta_roll;
+		uniform vec2 height_range;
 
 		uniform vec3 rotation[${num_joints}]; // rotations on each joint
 		uniform vec3 translation[${num_joints}]; // translations of each joint from the previous
@@ -438,7 +488,9 @@ class MouseScene(object):
 			if (the_index == 0) { A[0] = B; return A; }
 
 			% for i in range(num_joints):
+
 			else if (the_index == ${i}) { A[${i}] = B; return A; }
+
 			% endfor
 		}
 		
@@ -453,7 +505,7 @@ class MouseScene(object):
 			
 			// NOTE: there can be no for loops over declared arrays
 			// on Apple graphics hardware. It is absolutely ridiculous. 
-			// I might consider using string templating in the future.
+			// So, I'm using a templated loop with Mako. 
 
 			% for i in range(num_joints):
 
@@ -483,16 +535,23 @@ class MouseScene(object):
 
 			% endfor
 
-			vertex.xyz *= scale;
+			vertex.x *= scale_width;
+			vertex.z *= scale_length;
+			vertex.y *= scale_height;
 
-			vertex[0] = vertex[0]+offsetx;
-			vertex[2] = vertex[2]+offsety;
+			// vertex[0] = vertex[0]+offsetx;
+			// vertex[1] = vertex[1]+offsetz;
+			// vertex[2] = vertex[2]+offsety;
+
+			mat4 yaw = calcLocalRotation(vec3(0.0, theta_yaw, theta_roll), vec3(0.0));
+			vertex = vertex * yaw;
 
 			// Transform vertex by modelview and projection matrices
 			gl_Position = gl_ModelViewProjectionMatrix * vertex;
 
 			// Pass on the vertex color 
-			float the_color = (vertex[1]/(2.5*scale))*0.8 + 0.2;
+			float height = vertex[1];
+			float the_color = (height-height_range[0])/(height_range[1]-height_range[0]);
 			vertex_color = vec4(the_color, the_color, the_color, 1.0);
 
 		}
@@ -518,7 +577,11 @@ class MouseScene(object):
 
 		# Now, let's make sure our uniform and attribute value value will be sent 
 		# for uniform in ['joints', 'scale', 'offsetx', 'offsety', 'rotation', 'translation', 'bindingMatrixInverse']:
-		for uniform in ['scale', 'offsetx', 'offsety', 'rotation', 'translation', 'bindingMatrixInverse']:
+		for uniform in ['scale_length', 'scale_width', 'scale_height', \
+							'offsetx', 'offsety', 'offsetz', \
+							'theta_yaw', 'theta_roll', \
+							'height_range',\
+							'rotation', 'translation', 'bindingMatrixInverse']:
 			location = glGetUniformLocation(self.shaderProgram, uniform)
 			name = uniform+"_location"
 			setattr(self, uniform+"_location", location)
@@ -560,7 +623,7 @@ class MouseScene(object):
 		glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
 		self.renderBuffer = glGenRenderbuffers(1)
 		glBindRenderbuffer(GL_RENDERBUFFER, self.renderBuffer)
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, self.width, self.height)
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32, self.width, self.height)
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.renderBuffer)
 
 		color = glGenRenderbuffers(1)
@@ -654,7 +717,8 @@ class MouseScene(object):
 			# Set the position and angle offsets
 			self.offset_x = this_particle_data[:,0] - x
 			self.offset_y = this_particle_data[:,1] - y
-			self.offset_theta = this_particle_data[:,2] - theta
+			self.offset_theta_yaw = this_particle_data[:,2] - theta
+			# self.offset_theta_roll = this_particle_data[:,2]
 
 			# Set the joint rotations
 			rotations = this_particle_data[:,3:]
@@ -678,22 +742,23 @@ def test_single_mouse():
 	path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
 	# path_to_behavior_data = "/Users/mattjj/Dropbox/Test Data/"
 	# which_img = 731
-	which_img = 5
+	which_img = 30
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
-	image /= 354.0;
+	# image /= 300.0;
 	# np.save('data2',image)
 
 	num_particles = 32**2
-	numCols = int(np.sqrt(num_particles))
-	numRows = numCols
-	scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly.npz")
+	numCols = 32
+	numRows = 32
+	scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly2.npz")
 
-	useFramebuffer = True
+	useFramebuffer = False
 	ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
-								scale = 2.0, \
-								numCols=numCols, numRows=numRows, useFramebuffer=True)
+								scale_width = 18.0, scale_height = 300.0, 
+								scale_length = 18.0, \
+								numCols=numCols, numRows=numRows, useFramebuffer=useFramebuffer)
 	ms.gl_init()
 
 	# Get the base, unposed, rotations
@@ -703,30 +768,34 @@ def test_single_mouse():
 	rot = np.tile(rot, (num_passes, 1, 1))
 
 	# Fill in some particle data
-	particle_data = np.zeros((num_particles, 3+self.num_bones*3))
+	particle_data = np.zeros((num_particles, 3+ms.num_bones*3))
 	particle_data[:,3::3] = rot[:,:,0]
 	particle_data[:,4::3] = rot[:,:,1]
 	particle_data[:,5::3] = rot[:,:,2]
 
 	# Set the offsets
 	position_val = 0
-	particle_data[:,:2] = position_val + np.random.normal(scale=1, size=(num_particles, 2))
+	particle_data[1:,:2] = np.random.normal(loc=0, scale=1, size=(num_particles-1, 2))
 
 	# Set the angles
 	theta_val = 0
-	particle_data[:,2] = theta_val + np.random.normal(scale=1, size=(num_particles,))
+	particle_data[1:,2] = theta_val + np.random.normal(loc=0, scale=5, size=(num_particles-1,))
 
+	particle_data[1:,4::3] += np.random.normal(scale=10, size=(num_particles-1, ms.num_bones))
+	particle_data[1:,5::3] += np.random.normal(scale=10, size=(num_particles-1, ms.num_bones))
 
-	particle_data[1:,7::3] += np.random.normal(scale=10, size=(num_particles-1, ms.num_bones-1))
-	particle_data[1:,8::3] += np.random.normal(scale=10, size=(num_particles-1, ms.num_bones-1))
+	ms.scale_width[1:] = np.random.normal(loc=18, scale=5, size=(num_particles-1,))
+	ms.scale_length[1:] = np.random.normal(loc=18, scale=5, size=(num_particles-1,))
+	ms.scale_height[1:] = np.abs(np.random.normal(loc=300.0, scale=30, size=(num_particles-1,)))
+	ms.offset_z[1:] = np.random.normal(loc=0.0, scale=10.0, size=(num_particles-1,))
+	# ms.offset_theta_roll[1:] = np.random.normal(loc=0, scale=5, size=(num_particles-1,))
 
-	# np.save('particle_data',particle_data)
 	likelihoods, posed_mice = ms.get_likelihood(image, \
 						x=position_val, y=position_val, \
 						theta=theta_val, \
 						particle_data=particle_data,
 						return_posed_mice=True)
-	# np.save('likelihood2',likelihoods)
+
 
 	# L = ms.likelihood.T.ravel()
 	particle_rotations = np.hstack((particle_data[:,4::3], particle_data[:,5::3]))
@@ -779,9 +848,10 @@ if __name__ == '__main__':
 	useFramebuffer = False
 	if not useFramebuffer:
 		scenefile = "data/mouse_mesh_low_poly2.npz"
+		scale = 12.0
 		ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
-									scale = 20, \
-									numCols=10, numRows=10, useFramebuffer=useFramebuffer)
+									scale_width = scale, scale_height = 12, scale_length = scale, \
+									numCols=4, numRows=4, useFramebuffer=useFramebuffer)
 		ms.gl_init()
 		glutMainLoop()
 	else:
