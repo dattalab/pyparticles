@@ -14,37 +14,9 @@ from util.text import progprint_xrange
 datapath = "/Users/mattjj/Dropbox/Test Data/"
 scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
 
-# MyModel exactly the same as the following, but more explicit and maybe more efficient
-#   pm.Concatenation(
-#       components=(
-#           pm.SideInfo(noiseclass=lambda: pd.FixedNoise(xytheta_noisechol)),
-#           pm.RandomWalk(noiseclass=lambda:pd.FixedNoise(joints_noisechol))
-#       ),
-#       arggetters=(
-#           lambda d: {'sideinfo':operator.itemgetter('sideinfo')(d)},
-#           lambda d: {'lagged_outputs':
-#               map(lambda x: x[2:],operator.itemgetter('lagged_outputs')(d))}
-#       ))
+MyModel2 = lambda xytheta_noisechol, joints_noisechol: \
 
-class MyModel(object):
-    def __init__(self,xytheta_noisechol,joints_noisechol):
-        self.xytheta_sampler = pm.SideInfo(noiseclass=lambda: pd.FixedNoise(xytheta_noisechol))
-        self.joints_sampler = pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(joints_noisechol))
-
-    def sample_next(self,sideinfo,lagged_outputs):
-        return np.concatenate((
-            self.xytheta_sampler.sample_next(sideinfo=sideinfo),
-            self.joints_sampler.sample_next(lagged_outputs=(lagged_outputs[0][3:],))
-            ))
-
-    def copy(self):
-        new = self.__new__(self.__class__)
-        new.xytheta_sampler = self.xytheta_sampler.copy()
-        new.joints_sampler = self.joints_sampler.copy()
-        return new
-
-
-def run_randomwalk_fixednoise_sideinfo(cutoff):
+def run_randomwalk_fixednoise_sideinfo(cutofffactor):
     # load data and sideinfo
     data = load_behavior_data(datapath,200,"images")[5:] # 680-800 also good
     data = np.array([image.T[::-1,:].astype('float32') for image in data])/354.0
@@ -56,9 +28,10 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
 
     # make mousescene object
     numRows, numCols = (32,32)
-    num_particles = numRows*numCols*3
+    num_particles = numRows*numCols*10
     ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
-            scale = 2.0, \
+            # or 2.0
+            scale = 1.75, \
             numCols=numCols, numRows=numRows, useFramebuffer=True,showTiming=False)
     ms.gl_init()
 
@@ -67,6 +40,7 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
     # set up likelihood
     expandedpose = np.zeros((num_particles,3+3*9))
     expandedpose[:,3::3] = rot[0,:,0] # x angles are fixed
+
     def likelihood(stepnum,im,pose):
         expandedpose[:,:3] = pose[:,:3] # copy in xytheta
         expandedpose[:,4::3] = pose[:,3::2] # copy in y angles
@@ -80,7 +54,7 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
     # set up particle business
     # noisechol = np.diag( (1.,)*2 + (1.,) + (10.,)*(2*9) )
     xytheta_noisechol = np.diag( (1e-3,)*2 + (1e-3,) )
-    joints_noisechol = np.diag( (1e-6,)*2 + (10.,)*(2*8) )
+    joints_noisechol = np.diag( (10.,10.) + (10.,)*(2*8) )
 
     initial_pose = np.zeros(3+2*9)
     initial_pose[3::2] = rot[0,:,1] # y angles
@@ -91,17 +65,26 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
                     numlags=1,
                     previous_outputs=(initial_pose,),
                     # baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol))
-                    baseclass=lambda: MyModel(xytheta_noisechol, joints_noisechol)
+                    baseclass=lambda: \
+                        pm.Concatenation(
+                            components=(
+                                pm.SideInfo(noiseclass=lambda: pd.FixedNoise(xytheta_noisechol)),
+                                pm.RandomWalk(noiseclass=lambda:pd.FixedNoise(joints_noisechol))
+                            ),
+                            arggetters=(
+                                lambda d: {'sideinfo':d['sideinfo']},
+                                lambda d: {'lagged_outputs': map(lambda x: x[3:],d['lagged_outputs'])})
+                            )
             ) for itr in range(num_particles)]
 
     # create particle filter
-    particlefilter = pf.ParticleFilter(3+2*9,cutoff,likelihood,initial_particles)
+    particlefilter = pf.ParticleFilter(3+2*9,num_particles/cutofffactor,likelihood,initial_particles)
 
     # loop!!!
     particlefilter.step(data[0],sideinfo=xytheta[0])
     xytheta_noisechol[:,:] = np.diag( (1e-2,)*2 + (1e-2,) )
-    joints_noisechol[:,:] = np.diag( (1e-6,)*2 + (5.,) * (2*8) ) # TODO make this first step prettier
-    for i in progprint_xrange(1,26):
+    joints_noisechol[:,:] = np.diag( (3.,3.) + (3.,) * (2*8) ) # TODO make this first step prettier
+    for i in progprint_xrange(1,18):
     # for i in progprint_xrange(1,data.shape[0]):
         particlefilter.step(data[i],sideinfo=xytheta[i])
 
@@ -144,7 +127,7 @@ def get_trackplotter(track):
     if ms is None:
         numRows, numCols = (1,1)
         ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
-                scale = 2.0, \
+                scale = 1.75, \
                 numCols=numCols, numRows=numRows, useFramebuffer=True, showTiming=False)
         ms.gl_init()
 
@@ -176,7 +159,7 @@ def get_trackplotter(track):
 ##########
 
 if __name__ == '__main__':
-    res, expandedpose = run_randomwalk_fixednoise_sideinfo(500)
+    res, expandedpose = run_randomwalk_fixednoise_sideinfo(1)
     np.save('top5tracks',expand([p.track for p in topk(res.particles,res.weights_norm,5)],expandedpose))
     np.save('meantrack',np.squeeze(expand(meantrack(res.particles,res.weights_norm),expandedpose)))
     # Neffs = np.array(res.Neff_history)

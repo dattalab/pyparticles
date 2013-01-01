@@ -677,7 +677,10 @@ class MouseScene(object):
 			# Slice out our current particles to render
 			start = i*self.num_mice
 			end = start+self.num_mice
-			this_particle_data[:] = particle_data[start:end]
+			# NOTE: end-start may be longer than particle_data[start:end]
+			# this works because of numpy indexing, e.g. randn(10)[8:15]
+			sz = particle_data[start:end].shape[0]
+			this_particle_data[:sz] = particle_data[start:end]
 
 			# Set the position and angle offsets
 			self.offset_x = this_particle_data[:,0] - x
@@ -693,9 +696,9 @@ class MouseScene(object):
 			self.display()
 
 			# Grab the computed likelihoods
-			all_likelihoods[start:end] = self.likelihood.ravel()
+			all_likelihoods[start:end] = self.likelihood.ravel()[:sz]
 			if return_posed_mice:
-				posed_mice[start:end] = self.posed_mice.copy()
+				posed_mice[start:end] = self.posed_mice[:sz]
 		
 		if return_posed_mice:
 			return all_likelihoods, posed_mice
