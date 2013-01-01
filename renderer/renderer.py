@@ -83,7 +83,6 @@ class MouseScene(object):
 
 		# Find the vertex with the maximum number of joints influencing it
 		self.num_joint_influences =  (joint_weights>0).sum(1).max()
-		print self.num_joint_influences
 		self.num_bones = num_joints
 
 		# Save a list of all of the rotations of all the mice to be displayed
@@ -367,10 +366,6 @@ class MouseScene(object):
 		# and do our likelihood computations locally.
 		# The speedups to be gained here by moving it to the GPU 
 		# aren't super huge, as far as I'm aware.
-
-		print glGetDoublev(GL_DEPTH_BIAS)
-		print glGetDoublev(GL_DEPTH_SCALE)
-
 		data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
 		# data = data.ravel().reshape((self.height, self.width, 1))[:,:,0]
 		data = data.ravel().reshape((self.height, self.width))
@@ -717,11 +712,16 @@ class MouseScene(object):
 			# Set the position and angle offsets
 			self.offset_x = this_particle_data[:,0] - x
 			self.offset_y = this_particle_data[:,1] - y
-			self.offset_theta_yaw = this_particle_data[:,2] - theta
-			# self.offset_theta_roll = this_particle_data[:,2]
+			self.offset_z = this_particle_data[:,2]
+			self.offset_theta_yaw = this_particle_data[:,3] - theta
+			self.offset_theta_roll = this_particle_data[:,4]
+			self.scale_width = this_particle_data[:,5]
+			self.scale_length = this_particle_data[:,6]
+			self.scale_height = this_particle_data[:,7]
+
 
 			# Set the joint rotations
-			rotations = this_particle_data[:,3:]
+			rotations = this_particle_data[:,8:]
 			rotations = np.reshape(rotations, (self.num_mice, -1, 3))
 			self.rotations = rotations
 
@@ -746,49 +746,58 @@ def test_single_mouse():
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
-	# image /= 300.0;
-	# np.save('data2',image)
 
-	num_particles = 32**2
+	num_particles = 128**2
 	numCols = 32
 	numRows = 32
 	scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly2.npz")
 
 	useFramebuffer = False
 	ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
-								scale_width = 18.0, scale_height = 300.0, 
+								scale_width = 18.0, scale_height = 200.0, 
 								scale_length = 18.0, \
 								numCols=numCols, numRows=numRows, useFramebuffer=useFramebuffer)
 	ms.gl_init()
 
-	# Get the base, unposed, rotations
-	rot = ms.get_joint_rotations().copy()
-	# Tile it so it's the same size as the number of particles
+
+	# Figure out the number of passes we'll be making
 	num_passes = int(num_particles / ms.num_mice)
-	rot = np.tile(rot, (num_passes, 1, 1))
 
-	# Fill in some particle data
-	particle_data = np.zeros((num_particles, 3+ms.num_bones*3))
-	particle_data[:,3::3] = rot[:,:,0]
-	particle_data[:,4::3] = rot[:,:,1]
-	particle_data[:,5::3] = rot[:,:,2]
+	# Let's fill in our particles
+	particle_data = np.zeros((num_particles, 8+ms.num_bones*3))
 
-	# Set the offsets
+	# Set the horizontal offsets
 	position_val = 0
 	particle_data[1:,:2] = np.random.normal(loc=0, scale=1, size=(num_particles-1, 2))
 
-	# Set the angles
+	# Set the vertical offset
+	particle_data[1:,2] = np.random.normal(loc=0.0, scale=10.0, size=(num_particles-1,))
+
+	# Set the angles (yaw and roll)
 	theta_val = 0
-	particle_data[1:,2] = theta_val + np.random.normal(loc=0, scale=5, size=(num_particles-1,))
+	particle_data[1:,3] = theta_val + np.random.normal(loc=0, scale=3, size=(num_particles-1,))
+	particle_data[1:,4] = np.random.normal(loc=0, scale=3, size=(num_particles-1,))
 
-	particle_data[1:,4::3] += np.random.normal(scale=10, size=(num_particles-1, ms.num_bones))
-	particle_data[1:,5::3] += np.random.normal(scale=10, size=(num_particles-1, ms.num_bones))
+	# Set the scales (width, length, height)
+	particle_data[0,5] = np.max(ms.scale_width)
+	particle_data[0,6] = np.max(ms.scale_length)
+	particle_data[0,7] = np.max(ms.scale_height)
+	particle_data[1:,5] = np.random.normal(loc=18, scale=5, size=(num_particles-1,))
+	particle_data[1:,6] = np.random.normal(loc=18, scale=5, size=(num_particles-1,))
+	particle_data[1:,7] = np.abs(np.random.normal(loc=200.0, scale=50, size=(num_particles-1,)))
 
-	ms.scale_width[1:] = np.random.normal(loc=18, scale=5, size=(num_particles-1,))
-	ms.scale_length[1:] = np.random.normal(loc=18, scale=5, size=(num_particles-1,))
-	ms.scale_height[1:] = np.abs(np.random.normal(loc=300.0, scale=30, size=(num_particles-1,)))
-	ms.offset_z[1:] = np.random.normal(loc=0.0, scale=10.0, size=(num_particles-1,))
-	# ms.offset_theta_roll[1:] = np.random.normal(loc=0, scale=5, size=(num_particles-1,))
+	# Grab the baseline joint rotations
+	rot = ms.get_joint_rotations().copy()
+	rot = np.tile(rot, (num_passes, 1, 1))
+	particle_data[:,8::3] = rot[:,:,0]
+	particle_data[:,9::3] = rot[:,:,1]
+	particle_data[:,10::3] = rot[:,:,2]
+
+	# Add noise to the baseline rotations (just the pitch and yaw for now)
+	# particle_data[1:,8::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
+	particle_data[1:,9::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
+	particle_data[1:,10::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
+
 
 	likelihoods, posed_mice = ms.get_likelihood(image, \
 						x=position_val, y=position_val, \
@@ -798,7 +807,7 @@ def test_single_mouse():
 
 
 	# L = ms.likelihood.T.ravel()
-	particle_rotations = np.hstack((particle_data[:,4::3], particle_data[:,5::3]))
+	particle_rotations = np.hstack((particle_data[:,9::3], particle_data[:,10::3]))
 	real_rotations = np.hstack((rot[:,:,1], rot[:,:,2]))
 	rotation_diffs = np.sum((particle_rotations - real_rotations)**2.0, 1)
 
@@ -840,7 +849,7 @@ def test_single_mouse():
 		 verticalalignment='center',
 		 color='white')
 
-	return ms, rotation_diffs, likelihoods, particle_data
+	return ms, rotation_diffs, likelihoods, particle_data, posed_mice
 
 
 if __name__ == '__main__':

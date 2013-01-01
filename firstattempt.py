@@ -11,7 +11,9 @@ import predictive_distributions as pd
 import particle_filter as pf
 from util.text import progprint_xrange
 
-datapath = "/Users/mattjj/Dropbox/Test Data/"
+
+datapath = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
+# datapath = "/Users/mattjj/Dropbox/Test Data/"
 scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
 
 # MyModel exactly the same as the following, but more explicit and maybe more efficient
@@ -58,20 +60,23 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
     numRows, numCols = (32,32)
     num_particles = numRows*numCols*3
     ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
-            scale = 2.0, \
+            scale_width = 2.0, scale_height = 2.0, scale_length = 2.0\
             numCols=numCols, numRows=numRows, useFramebuffer=True,showTiming=False)
     ms.gl_init()
 
     rot = ms.get_joint_rotations().copy()
 
     # set up likelihood
-    expandedpose = np.zeros((num_particles,3+3*9))
-    expandedpose[:,3::3] = rot[0,:,0] # x angles are fixed
+    expandedpose = np.zeros((num_particles,8+3*ms.num_bones))
+    expandedpose[:,8::3] = rot[0,:,0] # x angles are fixed
     def likelihood(stepnum,im,pose):
-        expandedpose[:,:3] = pose[:,:3] # copy in xytheta
-        expandedpose[:,4::3] = pose[:,3::2] # copy in y angles
-        expandedpose[:,5::3] = pose[:,4::2] # copy in z angles
-        # np.save('expa5dedpose',expandedpose)
+        expandedpose[:,:3] = pose[:,:3] # copy in xyz offsets
+        expandedpose[:,3] = pose[:,3] # copy in theta yaw
+        expandedpose[:,4] = pose[:,4] # copy in theta roll
+        expandedpose[:,5:8] = pose[:,5:8] # copy in width, length and height scales
+        expandedpose[:,9::3] = pose[:,3::2] # copy in y angles
+        expandedpose[:,10::3] = pose[:,4::2] # copy in z angles
+        # np.save('expandedpose',expandedpose)
         likelihood = ms.get_likelihood(im,particle_data=expandedpose,
                 x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])
         # np.save('likelihood',likelihood)
@@ -95,12 +100,13 @@ def run_randomwalk_fixednoise_sideinfo(cutoff):
             ) for itr in range(num_particles)]
 
     # create particle filter
-    particlefilter = pf.ParticleFilter(3+2*9,cutoff,likelihood,initial_particles)
+    particlefilter = pf.ParticleFilter(8+2*ms.num_bones,cutoff,likelihood,initial_particles)
 
     # loop!!!
     particlefilter.step(data[0],sideinfo=xytheta[0])
     xytheta_noisechol[:,:] = np.diag( (1e-2,)*2 + (1e-2,) )
-    joints_noisechol[:,:] = np.diag( (1e-6,)*2 + (5.,) * (2*8) ) # TODO make this first step prettier
+    # joints_noisechol[:,:] = np.diag( (1e-6,)*2 + (5.,) * (2*8) ) # TODO make this first step prettier
+    joints_noisechol[:,:] = np.diag( (5.,) * (2*ms.num_bones) )
     for i in progprint_xrange(1,26):
     # for i in progprint_xrange(1,data.shape[0]):
         particlefilter.step(data[i],sideinfo=xytheta[i])
