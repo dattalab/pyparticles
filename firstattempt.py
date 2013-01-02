@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-from matplotlib import pyplot as plt
+from warnings import warn
 
 from renderer.load_data import load_behavior_data
 from renderer.renderer import MouseScene
@@ -11,8 +11,6 @@ import predictive_distributions as pd
 import particle_filter as pf
 from util.text import progprint_xrange
 
-# TODO factor out 3+2*9, think about a concise spec for particlefilter setup
-
 ################
 #  parameters  #
 ################
@@ -21,6 +19,9 @@ from util.text import progprint_xrange
 datapath = "/Users/mattjj/Dropbox/Test Data/"
 frame_indices = (5,180)
 scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
+
+expanded_pose_tuple_len = 3+3*9
+particle_pose_tuple_len = 3+2*9
 
 # computation parameters
 msNumRows, msNumCols = (32,32)
@@ -59,8 +60,9 @@ def _load_data_and_sideinfo():
 ##################################
 
 def _expand_poses(poses):
+    poses = np.array(poses)
     assert poses.ndim == 2
-    expandedposes = np.zeros((poses.shape[0],3+3*9))
+    expandedposes = np.zeros((poses.shape[0],expanded_pose_tuple_len))
     expandedposes[:,3::3] = ms.get_joint_rotations()[0,:,0] # x angles are fixed
     expandedposes[:,:3] = poses[:,:3] # copy in xytheta
     expandedposes[:,4::3] = poses[:,3::2] # copy in y angles
@@ -73,6 +75,7 @@ def log_likelihood(stepnum,im,poses):
             x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])
 
 def render(stepnum,poses):
+    warn('untested')
     _build_mousescene(), _load_data_and_sideinfo()
     return ms.get_likelihood(np.zeros((msNumRows,msNumCols)),particle_data=_expand_poses(poses),
             x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2],
@@ -81,7 +84,7 @@ def render(stepnum,poses):
 def run_randomwalk_fixednoise_sideinfo(cutofffactor):
     _build_mousescene(), _load_data_and_sideinfo()
 
-    initial_pose = np.zeros(3+2*9)
+    initial_pose = np.zeros(particle_pose_tuple_len)
     initial_pose[3::2] = ms.get_joint_rotations()[0,:,1] # y angles
     initial_pose[4::2] = ms.get_joint_rotations()[0,:,2] # z angles
 
@@ -102,21 +105,24 @@ def run_randomwalk_fixednoise_sideinfo(cutofffactor):
                                 lambda d: {'sideinfo':d['sideinfo']},
                                 lambda d: {'lagged_outputs': map(lambda x: x[3:],d['lagged_outputs'])})
                             )
-            ) for itr in range(num_particles)]
+                ) for itr in range(num_particles*5)] # NOTE: 5x initial particles
 
     # create particle filter
-    particlefilter = pf.ParticleFilter(3+2*9,num_particles/cutofffactor,log_likelihood,initial_particles)
+    particlefilter = pf.ParticleFilter(particle_pose_tuple_len,num_particles/cutofffactor,log_likelihood,initial_particles)
 
-    # loop!!!
-    # TODO make this first step prettier, use change_num_particles
+    # first step is special
     particlefilter.step(images[0],sideinfo=xytheta[0])
+
+    # change the number of particles and the noises
     xytheta_noisechol[:,:] = np.diag( (1e-2,)*2 + (1e-2,) )
     joints_noisechol[:,:] = np.diag( (3.,3.) + (3.,) * (2*8) )
-    for i in progprint_xrange(1,18):
-    # for i in progprint_xrange(1,data.shape[0]):
+
+    particlefilter.change_numparticles(num_particles)
+
+    for i in progprint_xrange(1,5):
         particlefilter.step(images[i],sideinfo=xytheta[i])
 
-    return particlefilter, expandedpose[0]
+    return particlefilter
 
 
 ###########
@@ -132,29 +138,12 @@ def meantrack(particles,weights):
         track += np.array(p.track) * w
     return track
 
-# TODO this is redundant with other expand function
-def expand(tracks,expandedpose):
-    tracks = np.array(tracks,ndmin=3)
-    expanded = np.zeros((tracks.shape[0],tracks.shape[1],expandedpose.shape[0]))
-
-    expanded[:,:,3::3] = expandedpose[3::3]
-    expanded[:,:,4] = expandedpose[4]
-    expanded[:,:,5] = expandedpose[5]
-
-    expanded[:,:,:3] = tracks[:,:,:3]
-    expanded[:,:,4::3] = tracks[:,:,3::2]
-    expanded[:,:,5::3] = tracks[:,:,4::2]
-    return expanded
-
 ##########
 #  main  #
 ##########
 
 if __name__ == '__main__':
-    res, expandedpose = run_randomwalk_fixednoise_sideinfo(1)
-    np.save('top5tracks',expand([p.track for p in topk(res.particles,res.weights_norm,5)],expandedpose))
-    np.save('meantrack',np.squeeze(expand(meantrack(res.particles,res.weights_norm),expandedpose)))
-    # Neffs = np.array(res.Neff_history)
-    # plt.plot(Neffs[:,0],Neffs[:,1],'bx-')
-    # plt.show()
+    result = run_randomwalk_fixednoise_sideinfo(1)
+    np.save('top5tracks',np.array([_expand_poses(p.track) for p in topk(result.particles,result.weights_norm,5)]))
+    np.save('meantrack',_expand_poses(meantrack(result.particles,result.weights_norm)))
 
