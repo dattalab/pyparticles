@@ -81,6 +81,11 @@ def render(stepnum,poses):
             x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2],
             return_posed_mice=True)[1]
 
+
+#############
+#  running  #
+#############
+
 def run_randomwalk_fixednoise_sideinfo(cutofffactor):
     _build_mousescene(), _load_data_and_sideinfo()
 
