@@ -129,7 +129,6 @@ def run_randomwalk_fixednoise_sideinfo(cutofffactor):
 
     return particlefilter
 
-
 ###########
 #  utils  #
 ###########
