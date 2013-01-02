@@ -21,9 +21,11 @@ from util.text import progprint_xrange
 datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 # datapath = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
 frame_indices = (5,180)
-use_mouse_model_version = 1 # 1 or 2 for now
+use_mouse_model_version = 1 # 1 or 2 for now, also affects _definitions below
 
-if use_mouse_model_version == 1:
+# TODO just put mousemodel stuff in their own files, import whichever model!
+
+if use_mouse_model_version == 2:
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
     expanded_pose_tuple_len = 3+3*9
     particle_pose_tuple_len = 3+2*9
@@ -94,6 +96,10 @@ def _expand_poses2(poses):
 
     return expandedposes
 
+if use_mouse_model_version == 1:
+    _expand_poses = _expand_poses1
+else:
+    _expand_poses = _expand_poses2
 
 def log_likelihood(stepnum,im,poses):
     _build_mousescene(), _load_data_and_sideinfo()
@@ -116,9 +122,11 @@ def run_randomwalk_fixednoise_sideinfo(cutofffactor):
     _build_mousescene(), _load_data_and_sideinfo()
 
     initial_pose = np.zeros(particle_pose_tuple_len)
+    # TODO fix these, add an initial_pose function
     initial_pose[3::2] = ms.get_joint_rotations()[0,:,1] # y angles
     initial_pose[4::2] = ms.get_joint_rotations()[0,:,2] # z angles
 
+    # TODO fix these, add a first_proposal_noises function
     xytheta_noisechol = np.diag( (1e-3,)*2 + (1e-3,) )
     joints_noisechol = np.diag( (10.,10.) + (10.,)*(2*8) )
 
