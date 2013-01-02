@@ -2,6 +2,7 @@
 util
 .DS_Store
 /temp*
-renderer/data/*
+renderer/data/*.ma
+renderer/data/frame*
 /profile_out.txt
 *.npy

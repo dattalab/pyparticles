@@ -14,21 +14,26 @@ class ParticleFilter(object):
         self.log_likelihood_fn = log_likelihood_fn
         self.cutoff = cutoff
         self.Neff_history = []
+        self.numsteps = 0
 
     def step(self,data,*args,**kwargs):
         for idx, particle in enumerate(self.particles):
             self.locs[idx] = particle.sample_next(*args,**kwargs)
-        self.log_weights += self.log_likelihood_fn(data,self.locs)
+        self.log_weights += self.log_likelihood_fn(self.numsteps,data,self.locs)
 
         if self._Neff() < self.cutoff:
+            print 'resampling'
             self._resample()
             self._Neff()
+
+        self.numsteps += 1
 
     def _Neff(self):
         self.weights_norm = np.exp(self.log_weights - np.logaddexp.reduce(self.log_weights))
         self.weights_norm /= self.weights_norm.sum()
         Neff = 1./np.sum(self.weights_norm**2)
-        self.Neff_history.append(Neff)
+        self.Neff_history.append((self.numsteps,Neff))
+        print Neff
         return Neff
 
     def _resample(self):
