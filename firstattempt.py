@@ -59,11 +59,13 @@ def _load_data_and_sideinfo():
 ##################################
 
 def _expand_poses(poses):
+    assert poses.ndim == 2
     expandedposes = np.zeros((poses.shape[0],3+3*9))
     expandedposes[:,3::3] = ms.get_joint_rotations()[0,:,0] # x angles are fixed
     expandedposes[:,:3] = poses[:,:3] # copy in xytheta
     expandedposes[:,4::3] = poses[:,3::2] # copy in y angles
     expandedposes[:,5::3] = poses[:,4::2] # copy in z angles
+    return expandedposes
 
 def log_likelihood(stepnum,im,poses):
     _build_mousescene(), _load_data_and_sideinfo()
@@ -77,7 +79,8 @@ def render(stepnum,poses):
             return_posed_mice=True)[1]
 
 def run_randomwalk_fixednoise_sideinfo(cutofffactor):
-    _build_mousescene()
+    _build_mousescene(), _load_data_and_sideinfo()
+
     initial_pose = np.zeros(3+2*9)
     initial_pose[3::2] = ms.get_joint_rotations()[0,:,1] # y angles
     initial_pose[4::2] = ms.get_joint_rotations()[0,:,2] # z angles

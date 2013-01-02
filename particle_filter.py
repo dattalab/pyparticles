@@ -33,7 +33,8 @@ class ParticleFilter(object):
         self.numsteps += 1
 
     def change_numparticles(self,newnum):
-        self._resample(num=newnum)
+        if newnum != len(self.particles):
+            self._resample(num=newnum)
 
     def _Neff(self):
         self.weights_norm = np.exp(self.log_weights - np.logaddexp.reduce(self.log_weights))
