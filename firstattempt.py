@@ -25,7 +25,7 @@ use_mouse_model_version = 1 # 1 or 2 for now, also affects _definitions below
 
 # TODO just put mousemodel stuff in their own files, import whichever model!
 
-if use_mouse_model_version == 2:
+if use_mouse_model_version == 1:
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
     expanded_pose_tuple_len = 3+3*9
     particle_pose_tuple_len = 3+2*9
@@ -121,14 +121,16 @@ def render(stepnum,poses):
 def run_randomwalk_fixednoise_sideinfo(cutofffactor):
     _build_mousescene(), _load_data_and_sideinfo()
 
-    initial_pose = np.zeros(particle_pose_tuple_len)
-    # TODO fix these, add an initial_pose function
-    initial_pose[3::2] = ms.get_joint_rotations()[0,:,1] # y angles
-    initial_pose[4::2] = ms.get_joint_rotations()[0,:,2] # z angles
+    # TODO ugly ugly ugly
+    if use_mouse_model_version == 1:
+        initial_pose = np.zeros(particle_pose_tuple_len)
+        initial_pose[3::2] = ms.get_joint_rotations()[0,:,1] # y angles
+        initial_pose[4::2] = ms.get_joint_rotations()[0,:,2] # z angles
 
-    # TODO fix these, add a first_proposal_noises function
-    xytheta_noisechol = np.diag( (1e-3,)*2 + (1e-3,) )
-    joints_noisechol = np.diag( (10.,10.) + (10.,)*(2*8) )
+        xytheta_noisechol = np.diag( (1e-3,)*2 + (1e-3,) )
+        joints_noisechol = np.diag( (10.,10.) + (10.,)*(2*8) )
+    else:
+        raise NotImplementedError # TODO set variances
 
     initial_particles = [
             pf.AR(
