@@ -15,15 +15,24 @@ from util.text import progprint_xrange
 #  parameters  #
 ################
 
-# experiment parameters
+### experiment parameters
+
+# TODO we should add local symbolic links along with a .gitignore
 datapath = "/Users/mattjj/Dropbox/Test Data/"
+# datapath = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
 frame_indices = (5,180)
-scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
+use_mouse_model_version = 2 # or 1
 
-expanded_pose_tuple_len = 3+3*9
-particle_pose_tuple_len = 3+2*9
+if use_mouse_model_version == 1:
+    scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
+    expanded_pose_tuple_len = 3+3*9
+    particle_pose_tuple_len = 3+2*9
+    # also affects _expand_poses definition below
+else:
+    scenefilepath = "renderer/data/mouse_mesh_low_poly2.npz"
+    raise NotImplementedError # TODO write this
 
-# computation parameters
+### computation parameters
 msNumRows, msNumCols = (32,32)
 num_particles = msNumRows*msNumCols*5
 
@@ -59,15 +68,34 @@ def _load_data_and_sideinfo():
 #  log_likelihood and rendering  #
 ##################################
 
-def _expand_poses(poses):
+def _expand_poses1(poses):
     poses = np.array(poses)
     assert poses.ndim == 2
+
     expandedposes = np.zeros((poses.shape[0],expanded_pose_tuple_len))
     expandedposes[:,3::3] = ms.get_joint_rotations()[0,:,0] # x angles are fixed
     expandedposes[:,:3] = poses[:,:3] # copy in xytheta
     expandedposes[:,4::3] = poses[:,3::2] # copy in y angles
     expandedposes[:,5::3] = poses[:,4::2] # copy in z angles
     return expandedposes
+
+def _expand_poses2(poses):
+    raise NotImplementedError # TODO check this
+    poses = np.array(poses)
+    assert poses.ndim == 2
+
+    expandedposes = np.zeros((poses.shape[0],8+3*ms.num_bones))
+    expandedposes[:,8::3] = ms.get_joint_rotations()[0,:,0] # x angles are fixed
+
+    expandedposes[:,:3] = poses[:,:3] # copy in xyz offsets
+    expandedposes[:,3] = poses[:,3] # copy in theta yaw
+    expandedposes[:,4] = poses[:,4] # copy in theta roll
+    expandedposes[:,5:8] = poses[:,5:8] # copy in width, length and height scales
+    expandedposes[:,9::3] = poses[:,3::2] # copy in y angles
+    expandedposes[:,10::3] = poses[:,4::2] # copy in z angles
+
+    return expandedposes
+
 
 def log_likelihood(stepnum,im,poses):
     _build_mousescene(), _load_data_and_sideinfo()
