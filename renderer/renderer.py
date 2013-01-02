@@ -742,8 +742,7 @@ class MouseScene(object):
 			return all_likelihoods
 
 def test_single_mouse():
-	# path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
-	path_to_behavior_data = "/Users/mattjj/Dropbox/Test Data/"
+	path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data')
 	# which_img = 731
 	which_img = 30
 	from load_data import load_behavior_data

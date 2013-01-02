@@ -6,3 +6,4 @@ renderer/data/*.ma
 renderer/data/frame*
 /profile_out.txt
 *.npy
+/Test Data

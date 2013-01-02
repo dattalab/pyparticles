@@ -2,6 +2,7 @@ from __future__ import division
 import numpy as np
 na = np.newaxis
 from warnings import warn
+import os
 
 from renderer.load_data import load_behavior_data
 from renderer.renderer import MouseScene
@@ -16,21 +17,20 @@ from util.text import progprint_xrange
 ################
 
 ### experiment parameters
-
 # TODO we should add local symbolic links along with a .gitignore
-datapath = "/Users/mattjj/Dropbox/Test Data/"
+datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 # datapath = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
 frame_indices = (5,180)
-use_mouse_model_version = 2 # or 1
+use_mouse_model_version = 1 # 1 or 2 for now
 
 if use_mouse_model_version == 1:
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
     expanded_pose_tuple_len = 3+3*9
     particle_pose_tuple_len = 3+2*9
-    # also affects _expand_poses definition below
 else:
     scenefilepath = "renderer/data/mouse_mesh_low_poly2.npz"
-    raise NotImplementedError # TODO write this
+    expanded_pose_tuple_len = 8+3*6
+    particle_pose_tuple_len = 8+2*6
 
 ### computation parameters
 msNumRows, msNumCols = (32,32)
@@ -50,8 +50,6 @@ def _build_mousescene():
     global ms
     if ms is None:
         ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
-                # or 2.0
-                scale = 1.75, \
                 numCols=msNumCols, numRows=msNumRows, useFramebuffer=True,showTiming=False)
         ms.gl_init()
 
@@ -80,15 +78,15 @@ def _expand_poses1(poses):
     return expandedposes
 
 def _expand_poses2(poses):
-    raise NotImplementedError # TODO check this
     poses = np.array(poses)
     assert poses.ndim == 2
 
     expandedposes = np.zeros((poses.shape[0],8+3*ms.num_bones))
     expandedposes[:,8::3] = ms.get_joint_rotations()[0,:,0] # x angles are fixed
 
-    expandedposes[:,:3] = poses[:,:3] # copy in xyz offsets
-    expandedposes[:,3] = poses[:,3] # copy in theta yaw
+    expandedposes[:,:2] = poses[:,:2] # x y
+    expandedposes[:,2] = poses[:,3] # z
+    expandedposes[:,3] = poses[:,2] # theta yaw
     expandedposes[:,4] = poses[:,4] # copy in theta roll
     expandedposes[:,5:8] = poses[:,5:8] # copy in width, length and height scales
     expandedposes[:,9::3] = poses[:,3::2] # copy in y angles
