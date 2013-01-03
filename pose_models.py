@@ -95,6 +95,7 @@ class PoseModel1(PoseModelBase):
                 x=0.,y=0.,theta=0.,
                 **dict(('psi_%s%d'%(v,i),jr[i,j]) for i in range(1,10) for j,v in enumerate(['x','y','z'])))
 
+
 class PoseModel2(PoseModelBase):
     '''
     includes theta_roll, axis scaling, and six full joints
