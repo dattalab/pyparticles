@@ -2,7 +2,8 @@
 util
 .DS_Store
 /temp*
-renderer/data/*
+renderer/data/*.ma
+renderer/data/frame*
 /profile_out.txt
-/meantrack.npy
-/top5tracks.npy
+*.npy
+/Test Data

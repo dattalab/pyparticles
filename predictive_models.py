@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 from collections import defaultdict
 
-from pymattutil.stats import sample_discrete
+from util.stats import sample_discrete
 
 '''predictive samplers for distributions that use basic distributions'''
 

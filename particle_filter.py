@@ -3,39 +3,62 @@ import numpy as np
 from collections import deque
 import abc
 
+from util.general import ibincount
+
+DEBUG = True
+
 class ParticleFilter(object):
     def __init__(self,ndim,cutoff,log_likelihood_fn,initial_particles):
         assert len(initial_particles) > 0
-        n_particles = len(initial_particles)
+
         self.particles = initial_particles
-        self.locs = np.empty((n_particles,ndim))
-        self.log_weights = np.zeros(n_particles)
-        self.weights_norm = np.ones(n_particles)
         self.log_likelihood_fn = log_likelihood_fn
         self.cutoff = cutoff
+
+        self.locs = np.empty((len(initial_particles),ndim))
+        self.log_weights = np.zeros(len(initial_particles))
+        self.weights_norm = np.ones(len(initial_particles))
+
         self.Neff_history = []
+        self.numsteps = 0
 
     def step(self,data,*args,**kwargs):
         for idx, particle in enumerate(self.particles):
             self.locs[idx] = particle.sample_next(*args,**kwargs)
-        self.log_weights += self.log_likelihood_fn(data,self.locs)
+        self.log_weights += self.log_likelihood_fn(self.numsteps,data,self.locs)
 
         if self._Neff() < self.cutoff:
             self._resample()
-            self._Neff()
+
+        self.numsteps += 1
+
+    def change_numparticles(self,newnum):
+        if newnum != len(self.particles):
+            self._resample(num=newnum)
 
     def _Neff(self):
         self.weights_norm = np.exp(self.log_weights - np.logaddexp.reduce(self.log_weights))
         self.weights_norm /= self.weights_norm.sum()
         Neff = 1./np.sum(self.weights_norm**2)
-        self.Neff_history.append(Neff)
+        if DEBUG:
+            print Neff
         return Neff
 
-    def _resample(self):
-        sources = np.random.multinomial(1,self.weights_norm,size=len(self.particles)).argmax(1)
+    def _resample(self,num=None):
+        num = num if num is not None else len(self.particles)
+
+        sources = ibincount(np.random.multinomial(num,self.weights_norm))
         self.particles = [self.particles[idx].copy() for idx in sources]
-        self.log_weights = (np.logaddexp.reduce(self.log_weights) - np.log(len(self.particles))) \
-                * np.ones(len(self.particles))
+        self.locs = self.locs[sources]
+
+        self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
+        self.weights_norm = np.repeat(1./num, num)
+
+        if DEBUG:
+            print num
+
+        self.Neff_history.append((self.numsteps,num))
+
 
 ######################
 #  Particle objects  #
