@@ -50,7 +50,7 @@ class MouseModelABC(object):
 
     def expand_poses(self,poses):
         # this default version can be overridden if it is too slow
-        return np.array([self.DefaultPose.replace(**self.ParticlePose(*pose).__dict__) for pose in poses])
+        return np.array([self.DefaultPose._replace(**self.ParticlePose(*pose).__dict__) for pose in poses])
 
 class MouseModel1(object):
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
