@@ -45,14 +45,14 @@ def _flatten(lst):
     reduce(operator.add,lst)
 
 
-class ModelABC(object):
+class MouseModelABC(object):
     __metaclass__ = abc.ABCMeta
 
     def expand_poses(self,poses):
         # this default version can be overridden if it is too slow
         return np.array([self.DefaultPose.replace(**self.ParticlePose(*pose).__dict__) for pose in poses])
 
-class Model1(object):
+class MouseModel1(object):
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
     renderer_pose_tuple_len = 3+3*9
     particle_pose_tuple_len = 3+2*9
@@ -80,7 +80,7 @@ class Model1(object):
         return expandedposes
 
 
-class Model2(object):
+class MouseModel2(object):
     scenefilepath = "renderer/data/mouse_mesh_low_poly2.npz"
     renderer_pose_tuple_len = 8+3*6
     particle_pose_tuple_len = 8+2*6
@@ -126,7 +126,7 @@ class Model2(object):
         return expandedposes
 
 
-class Model3(object):
+class MouseModel3(object):
     '''
     five joints, not six as in Model2
     don't propose over theta_roll or first two joints' y angles

@@ -42,7 +42,7 @@ class Experiment1(object):
     _subsequent_randomwalk_noisechol = _initial_randomwalk_noisechol / 2.5 # TODO guessed
 
     def __init__(self):
-        self.mouse_model = mouse_models.Model3()
+        self.mouse_model = mouse_models.MouseModel3()
 
         # these copies serve as references to the particles' current noises
         # having them in separate memory keeps them distinct from this class's
