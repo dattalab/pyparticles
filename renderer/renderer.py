@@ -743,14 +743,14 @@ class MouseScene(object):
 			return all_likelihoods
 
 def test_single_mouse():
-	path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data')
-	# which_img = 731
-	which_img = 30
+	path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Mouse No Median Filter, No Dilation')
+	# which_img = 30
+	which_img = 731
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
 
-	num_particles = 32**2
+	num_particles = 64**2
 	numCols = 32
 	numRows = 32
 	scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly3.npz")

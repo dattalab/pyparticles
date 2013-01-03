@@ -12,16 +12,20 @@ import predictive_distributions as pd
 import particle_filter as pf
 from util.text import progprint_xrange
 
+
+
 ################
 #  parameters  #
 ################
 
 ### experiment parameters
 # TODO we should add local symbolic links along with a .gitignore
+
+# datapath = os.path.join(os.path.dirname(__file__),"Test Data/Mouse No Median Filter, No Dilation")
 datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 # datapath = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
 frame_indices = (5,180)
-use_mouse_model_version = 1 # 1 or 2 for now, also affects _definitions below
+use_mouse_model_version = 2 # 1, 2 or 3 for now, also affects _definitions below
 
 # TODO just put mousemodel stuff in their own files, import whichever model!
 
@@ -29,10 +33,15 @@ if use_mouse_model_version == 1:
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
     expanded_pose_tuple_len = 3+3*9
     particle_pose_tuple_len = 3+2*9
-else:
+elif use_mouse_model_version == 2:
     scenefilepath = "renderer/data/mouse_mesh_low_poly2.npz"
     expanded_pose_tuple_len = 8+3*6
     particle_pose_tuple_len = 8+2*6
+elif use_mouse_model_version == 3:
+    scenefilepath = "renderer/data/mouse_mesh_low_poly3.npz"
+    expanded_pose_tuple_len = 8+3*5
+    particle_pose_tuple_len = 7+2*5 - 2
+
 
 ### computation parameters
 msNumRows, msNumCols = (32,32)
@@ -85,31 +94,55 @@ def _expand_poses2(poses):
 
     expandedposes = np.zeros((poses.shape[0],8+3*ms.num_bones))
     expandedposes[:,8::3] = ms.get_joint_rotations()[0,:,0] # x angles are fixed
-
     expandedposes[:,:2] = poses[:,:2] # x y
     expandedposes[:,2] = poses[:,3] # z
     expandedposes[:,3] = poses[:,2] # theta yaw
     expandedposes[:,4] = poses[:,4] # copy in theta roll
     expandedposes[:,5:8] = poses[:,5:8] # copy in width, length and height scales
-    expandedposes[:,9::3] = poses[:,3::2] # copy in y angles
-    expandedposes[:,10::3] = poses[:,4::2] # copy in z angles
+    expandedposes[:,9::3] = poses[:,8::2] # copy in y angles
+    expandedposes[:,10::3] = poses[:,9::2] # copy in z angles
+    return expandedposes
 
+def _expand_poses3(poses):
+    poses = np.array(poses)
+    assert poses.ndim == 2
+
+    expandedposes = np.zeros((poses.shape[0],8+3*ms.num_bones))
+    default_rotations = ms.get_joint_rotations()
+    expandedposes[:,8::3] = default_rotations[0,:,0] # x angles are fixed
+    expandedposes[:,9:9+6:3] = default_rotations[0,:2,1] # the first two y angles are fixed
+    expandedposes[:,:2] = poses[:,:2] # x y
+    expandedposes[:,2] = poses[:,3] # z
+    expandedposes[:,3] = poses[:,2] # theta yaw
+    expandedposes[:,5:8] = poses[:,4:7] # copy in width, length and height scales
+    expandedposes[:,10:10+6:3] = poses[:,7:9] # copy in z angles (first two joints DO have z-angles)
+    expandedposes[:,9+6::3] = poses[:,9::2] # copy in y angles (but not the first two joints)
+    expandedposes[:,10+6::3] = poses[:,10::2] # copy in the rest of the z angles
     return expandedposes
 
 if use_mouse_model_version == 1:
     _expand_poses = _expand_poses1
-else:
+elif use_mouse_model_version == 2:
     _expand_poses = _expand_poses2
+elif use_mouse_model_version == 3:
+    _expand_poses = _expand_poses3
 
 def log_likelihood(stepnum,im,poses):
     _build_mousescene(), _load_data_and_sideinfo()
     return ms.get_likelihood(im,particle_data=_expand_poses(poses),
             x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])
 
-def render(stepnum,poses):
+def render(stepnum,poses, is_expanded=True):
     warn('untested')
     _build_mousescene(), _load_data_and_sideinfo()
-    return ms.get_likelihood(np.zeros((msNumRows,msNumCols)),particle_data=_expand_poses(poses),
+
+    def get_poses(poses):
+        if is_expanded:
+            return poses
+        else:
+            return expand_poses(poses)
+
+    return ms.get_likelihood(np.zeros((ms.mouse_width, ms.mouse_height)), particle_data=get_poses(poses),
             x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2],
             return_posed_mice=True)[1]
 
@@ -122,15 +155,32 @@ def run_randomwalk_fixednoise_sideinfo(cutofffactor):
     _build_mousescene(), _load_data_and_sideinfo()
 
     # TODO ugly ugly ugly
+    initial_pose = np.zeros(particle_pose_tuple_len)
+    default_rotations = ms.get_joint_rotations()
     if use_mouse_model_version == 1:
-        initial_pose = np.zeros(particle_pose_tuple_len)
-        initial_pose[3::2] = ms.get_joint_rotations()[0,:,1] # y angles
-        initial_pose[4::2] = ms.get_joint_rotations()[0,:,2] # z angles
-
+        initial_pose[3::2] = default_rotations[0,:,1] # y angles
+        initial_pose[4::2] = default_rotations[0,:,2] # z angles
         xytheta_noisechol = np.diag( (1e-3,)*2 + (1e-3,) )
         joints_noisechol = np.diag( (10.,10.) + (10.,)*(2*8) )
-    else:
-        raise NotImplementedError # TODO set variances
+    elif use_mouse_model_version == 2:
+        initial_pose[5:8] = (18,18,200)
+        initial_pose[8::2] = default_rotations[0,:,1] # y angles
+        initial_pose[9::2] = default_rotations[0,:,2] # z angles
+        # x,y,theta
+        xytheta_noisechol = np.diag( (1e-3,)*2 + (1e-3,) )
+        # z, theta_roll, width, length, height, thetay1, thetaz1, thetay2, thetaz2, ...
+        joints_noisechol = np.diag( (10.,) + (1e-3,) + (2.,)*2 + (10.,) + (15.,)*(2*6) )
+    elif use_mouse_model_version == 3:
+        # x, y, theta, z, width, length, height, thetaz1, thetaz2, thetay3, thetaz3, thetay4, thetaz4, ...
+        initial_pose[4:7] = (18,18,200)
+        initial_pose[7:9] = default_rotations[0,:2,2] # first two joints have z-angles
+        initial_pose[9::2] = default_rotations[0,2:,1] # y angles for every joint after the first two
+        initial_pose[10::2] = default_rotations[0,2:,2] # z angles for every joint after the first two
+        # x, y, theta
+        xytheta_noisechol = np.diag( (1e-3,)*2 + (1e-3,) )
+        # z, width, length, height, thetaz1, thetaz2, thetay3, thetaz3, thetay4, thetaz4, ...
+        joints_noisechol = np.diag( (10.,) + (2.,)*2 + (10.,) + (15.,)*(2*5 - 2) )
+
 
     initial_particles = [
             pf.AR(
@@ -155,8 +205,17 @@ def run_randomwalk_fixednoise_sideinfo(cutofffactor):
     particlefilter.step(images[0],sideinfo=xytheta[0])
 
     # change the number of particles and the noises
-    xytheta_noisechol[:,:] = np.diag( (1e-2,)*2 + (1e-2,) )
-    joints_noisechol[:,:] = np.diag( (3.,3.) + (3.,) * (2*8) )
+    if use_mouse_model_version == 1:
+        xytheta_noisechol[:,:] = np.diag( (1e-2,)*2 + (1e-2,) )
+        joints_noisechol[:,:] = np.diag( (3.,3.) + (3.,) * (2*8) )
+    elif use_mouse_model_version == 2:
+        # x,y,theta
+        xytheta_noisechol = np.diag( (1e-2,)*2 + (1e-2,) )
+        # z, theta_roll, width, length, height, thetay1, thetaz1, thetay2, thetaz2, ...
+        joints_noisechol = np.diag( (1.,) + (1e-3,) + (1e-2,)*3 + (3.,)*(2*6) )
+    elif use_mouse_model_version == 3:
+        xytheta_noisechol[:,:] = np.diag( (1e-2,)*2 + (1e-2,) )
+        joints_noisechol = np.diag( (1.,) + (1e-2,)*3 + (3.,)*(2*5 - 2) )
 
     particlefilter.change_numparticles(num_particles)
 
