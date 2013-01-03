@@ -28,7 +28,7 @@ ms = None # MouseScene object, global so that it's only built once
 xytheta = images = None # offset sideinfo sequence and image sequence
 
 def _build_mousescene(conf):
-    scenefilepath = os.path.join(os.path.dirname(__file__),conf.mouse_model.scenefilepath)
+    scenefilepath = os.path.join(os.path.dirname(__file__),conf.pose_model.scenefilepath)
 
     global ms
     if ms is None:
@@ -62,7 +62,7 @@ def run(conf,num_particles,cutoff,num_particles_firststep):
 
     # build the particle filter
     particlefilter = pf.ParticleFilter(
-                        conf.mouse_model.particle_pose_tuple_len,
+                        conf.pose_model.particle_pose_tuple_len,
                         cutoff,
                         conf.get_log_likelihood(ms,xytheta),
                         conf.get_initial_particles(num_particles_firststep))
@@ -95,7 +95,7 @@ def render(conf,stepnum,poses):
     warn('untested')
     # might be slow; needs to do a full mousescene render pass
     _build_mousescene(), _load_data_and_sideinfo()
-    return ms.get_likelihood(np.zeros((msNumRows,msNumCols)),particle_data=conf.mouse_model.expand_poses(poses),
+    return ms.get_likelihood(np.zeros((msNumRows,msNumCols)),particle_data=conf.pose_model.expand_poses(poses),
             x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2],
             return_posed_mice=True)[1]
 

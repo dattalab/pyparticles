@@ -1,14 +1,14 @@
 from __future__ import division
 import numpy as np
 
-import mouse_models
+import pose_models
 
 import particle_filter as pf
 import predictive_models as pm
 import predictive_distributions as pd
 
 '''
-The classes in this file handle experiment setups, including the choice of mouse
+The classes in this file handle experiment setups, including the choice of pose
 model, data (sub)sequence, and particle configuration and parameters. These
 classes do NOT specify the numbers of particles; those are left as an argument
 to the functions in run.py since they may change more frequently than the
@@ -42,7 +42,7 @@ class Experiment1(object):
     _subsequent_randomwalk_noisechol = _initial_randomwalk_noisechol / 2.5 # TODO guessed
 
     def __init__(self):
-        self.mouse_model = mouse_models.MouseModel3()
+        self.pose_model = pose_models.PoseModel3()
 
         # these copies serve as references to the particles' current noises
         # having them in separate memory keeps them distinct from this class's
@@ -53,7 +53,7 @@ class Experiment1(object):
     def get_initial_particles(self,num_particles_firststep):
         return [pf.AR(
                     numlags=1,
-                    previous_outputs=(self.mouse_model.default_particle_pose,),
+                    previous_outputs=(self.pose_model.default_particle_pose,),
                     baseclass=lambda: \
                         pm.Concatenation(
                             components=(
@@ -68,7 +68,7 @@ class Experiment1(object):
 
     def get_log_likelihood(self,ms,xytheta):
         def log_likelihood(stepnum,im,poses):
-            return ms.get_likelihood(im,particle_data=self.mouse_model.expand_poses(poses),
+            return ms.get_likelihood(im,particle_data=self.pose_model.expand_poses(poses),
                 x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])
         return log_likelihood
 

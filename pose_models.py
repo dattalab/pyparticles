@@ -2,58 +2,42 @@ from __future__ import division
 import numpy as np
 na = np.newaxis
 from collections import namedtuple
-import operator, abc
 
 from util.general import joindicts
 
 '''
-The classes in this file handle different mouse models, with each class modeling
-the renderer pose tuple as well as the particle pose tuple, along with the
+The classes in this file handle different pose models, with each class modeling
+a renderer pose tuple as well as a particle pose tuple, along with the
 expand_poses function to map from the particle tuple to the renderer tuple. They
 also specify the default values for the full renderer pose.
 
 The elements in RendererPose but not in ParticlePose are fixed to their
 defaults, as specified in DefaultPose.
 
-A Model object in this file must have the following members:
+A PoseModel must have metaclass PoseModelMetaclass and should inherit from
+PoseModelBase to get the default expand_poses() implementation.
 
-    - scenefilepath (string)
-    - renderer_pose_tuple_len (int)
-    - particle_pose_tuple_len (int)
+A PoseModel class in this file must have the following members:
 
-    - expand_poses(particle_pose) (takes a particle pose and returns the renderer pose)
+    - scenefilepath (string, path relative to git root, class member)
 
-    these three are recommended but not necessary
-    they are required for the default expand_poses()
-    - ParticlePose (namedtuple class)
-    - RendererPose (namedtuple class)
-    - default_renderer_pose (instance of RendererPose)
+    - ParticlePose (namedtuple class, class member)
+    - RendererPose (namedtuple class, class member)
+
+    - default_renderer_pose (instance of RendererPose, can be instance member)
 '''
 
-# NOTE both this code and code in mousescene load the scenefile. this code loads
+# NOTE both this code and code for MouseScene load the scenefile. this code loads
 # it to get the default pose, which mousescene might be able to ignore in the
-# future for the non-offset parameters (i.e. joint angles). mousescene loads it
-# for obvious rendering purposes.
+# future. mousescene loads the scenefile for obvious rendering purposes.
 
-# to understand all the vector packing, see the specs at
-# https://github.com/mattjj/hsmm-particlefilters/wiki/Mouse-Model-Pose-Tuple-Specs
+####################
+#  old and busted  #
+####################
 
-# NOTE: in the comments below, the text <link> refers to
-# https://github.com/mattjj/hsmm-particlefilters/blob/ab175f229e219f5117fde5ce76921e0014419180/renderer/renderer.py
+# TODO turn these into newhotness
 
-def _flatten(lst):
-    reduce(operator.add,lst)
-
-
-class MouseModelABC(object):
-    __metaclass__ = abc.ABCMeta
-
-    def expand_poses(self,poses):
-        # this default version can be overridden if it is too slow
-        return np.array([self.default_renderer_pose._replace(**self.ParticlePose(*pose).__dict__)
-            for pose in poses])
-
-class MouseModel1(object):
+class PoseModel1(object):
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
     renderer_pose_tuple_len = 3+3*9
     particle_pose_tuple_len = 3+2*9
@@ -81,7 +65,7 @@ class MouseModel1(object):
         return expandedposes
 
 
-class MouseModel2(object):
+class PoseModel2(object):
     scenefilepath = "renderer/data/mouse_mesh_low_poly2.npz"
     renderer_pose_tuple_len = 8+3*6
     particle_pose_tuple_len = 8+2*6
@@ -127,11 +111,48 @@ class MouseModel2(object):
         return expandedposes
 
 
-class MouseModel3(MouseModelABC):
+#################
+#  new hotness  #
+#################
+
+# the advantages of using a metaclass are allowing a PoseModel the freedom to
+# override __init__ or __new__, not requiring calling any specific PoseModelBase
+# functions in a PoseModel's __init__ or __new__, keeping pose specs as class
+# members instead of instance members for convenient inspection, and
+# module-load-time checking that the PoseModel has the right class members.
+
+class PoseModelMetaclass(type):
+    def __new__(cls,name,bases,dct):
+        assert 'scenefilepath' in dct
+        assert 'RendererPose' in dct
+        assert 'ParticlePose' in dct
+
+        RP, PP = dct['RendererPose'], dct['ParticlePose']
+        dct['_expand_indices'] = [RP._fields.index(x) for x in PP._fields]
+        dct['_default_indices'] = [i for i,x in enumerate(RP._fields) if x not in PP._fields]
+        dct['particle_pose_tuple_len'] = len(PP._fields)
+        dct['renderer_pose_tuple_len'] = len(RP._fields)
+        return super(PoseModelMetaclass,cls).__new__(cls,name,bases,dct)
+
+class PoseModelBase(object):
+    def expand_poses(self,poses):
+        expanded = np.empty((poses.shape[0],self.renderer_pose_tuple_len))
+        expanded[:,self._default_indices] = self.default_renderer_pose[self._default_indices]
+        expanded[:,self._expand_indices] = poses
+        return expanded
+
+    def _expand_poses_old(self,poses):
+        return np.array([self.default_renderer_pose._replace(**self.ParticlePose(*pose).__dict__)
+            for pose in poses])
+
+
+class PoseModel3(PoseModelBase):
     '''
     five joints, not six as in Model2
     don't propose over theta_roll or first two joints' y angles
     '''
+
+    __metaclass__ = PoseModelMetaclass
 
     scenefilepath = "renderer/data/mouse_mesh_low_poly3.npz"
 
@@ -147,13 +168,11 @@ class MouseModel3(MouseModelABC):
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']]
             )
-
-    particle_pose_tuple_len = len(ParticlePose._fields)
-    renderer_pose_tuple_len = len(RendererPose._fields)
+    del i,v
 
     def __init__(self):
-        # construct DefaultPose for each instance so that any errors only happen on
-        # class instantiation, not on module load
+        # construct DefaultPose for each instance so that any errors depending
+        # on filesystem state only happen on class instantiation, not on module load
         f = np.load(self.scenefilepath)
         self.joint_rotations = jr = f['joint_rotations']
 
