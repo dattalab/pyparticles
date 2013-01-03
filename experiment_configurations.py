@@ -9,10 +9,10 @@ import predictive_distributions as pd
 
 '''
 The classes in this file handle experiment setups, including the choice of mouse
-model, data (sub)sequence, and particle parameters. These classes do NOT specify
-the numbers of particles; those are left as an argument to the functions in
-run.py since they may change more frequently than the experiment configurations
-described here.
+model, data (sub)sequence, and particle configuration and parameters. These
+classes do NOT specify the numbers of particles; those are left as an argument
+to the functions in run.py since they may change more frequently than the
+experiment configurations described here.
 
 An Experiment object in this file must have the following members:
 
