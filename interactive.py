@@ -17,6 +17,7 @@ COLORS = ['r','g','c','m','k']
 ##########################
 
 def smart():
+    raise NotImplementedError
     nlags = 2
     MNIWARparams = (
                 3,
@@ -48,25 +49,8 @@ def smart():
 
     return interactive(2500,500,particle_factory,plotfunc)
 
-
-def dumb_randomwalk_fixednoise():
-    noisechol = 20*np.eye(2)
-    particle_factory = lambda: \
-            pm.AR(
-                    numlags=1,
-                    initial_obs=[np.zeros(2)],
-                    baseclass=lambda: \
-                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol=noisechol))
-                    )
-
-    def plotfunc(particles,weights):
-        plottopk(particles,weights,5)
-        plotmeanpath(particles,weights)
-
-    return interactive(5000,2500,particle_factory,plotfunc)
-
-
 def dumb_randomwalk_learnednoise():
+    raise NotImplementedError
     particle_factory = lambda: \
             pm.AR(
                     numlags=1,
@@ -83,6 +67,7 @@ def dumb_randomwalk_learnednoise():
 
 
 def dumb_momentum_fixednoise():
+    raise NotImplementedError
     propmatrix = np.hstack((2*np.eye(2),-1*np.eye(2)))
     noisechol = 20*np.eye(2)
     particle_factory = lambda: \
@@ -103,6 +88,7 @@ def dumb_momentum_fixednoise():
 
 
 def dumb_momentum_learnednoise():
+    raise NotImplementedError
     propmatrix = np.hstack((2*np.eye(2),-1*np.eye(2)))
     invwishparams = (10,10.*30*np.eye(2))
     particle_factory = lambda: \
@@ -121,16 +107,34 @@ def dumb_momentum_learnednoise():
     return interactive(5000,2500,particle_factory,plotfunc)
 
 
-def interactive(nparticles,cutoff,particle_factory,plotfunc):
+
+def dumb_randomwalk_fixednoise():
+    noisechol = 30*np.eye(2)
+    initial_particles = [
+            pf.AR(
+                    numlags=1,
+                    previous_outputs=[np.zeros(2)],
+                    baseclass=lambda: \
+                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol=noisechol))
+                    ) for itr in range(10000)]
+
+    def plotfunc(particles,weights):
+        plottopk(particles,weights,5)
+        plotmeanpath(particles,weights)
+
+    return interactive(initial_particles,2500,plotfunc)
+
+
+def interactive(initial_particles,cutoff,plotfunc):
     sigma = 10.
-    def loglikelihood(locs,data):
+    def loglikelihood(_,locs,data):
         return -np.sum((locs - data)**2,axis=1)/(2*sigma**2)
 
     plt.clf()
 
     points = [np.zeros(2)]
 
-    particlefilter = pf.ParticleFilter(2,nparticles,cutoff,loglikelihood,particle_factory)
+    particlefilter = pf.ParticleFilter(2,cutoff,loglikelihood,initial_particles)
 
     plt.ioff()
 
@@ -154,6 +158,7 @@ def interactive(nparticles,cutoff,particle_factory,plotfunc):
             plt.clf()
 
             particlefilter.step(out)
+            particlefilter.change_numparticles(5000) # TESTING
 
             plotfunc(particlefilter.particles,particlefilter.weights_norm)
 
