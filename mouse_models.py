@@ -145,10 +145,11 @@ class MouseModel3(MouseModelABC):
             'Model3RendererPose',
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h',
              'psi_y1','psi_z1','psi_y2','psi_z2','psi_y3','psi_z3','psi_y4','psi_z4','psi_y5','psi_z5']
+             #['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']]
             )
 
-    particle_pose_tuple_len = len(ParticlePose)
-    renderer_pose_tuple_len = len(RendererPose)
+    particle_pose_tuple_len = len(ParticlePose._fields)
+    renderer_pose_tuple_len = len(RendererPose._fields)
 
     def __init__(self):
         # construct DefaultPose for each instance so that any errors only happen on
