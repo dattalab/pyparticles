@@ -3,8 +3,6 @@ import numpy as np
 na = np.newaxis
 from collections import namedtuple
 
-from util.general import joindicts
-
 '''
 The classes in this file handle different pose models, with each class modeling
 a renderer pose tuple as well as a particle pose tuple, along with the
@@ -25,95 +23,19 @@ A PoseModel class in this file must have the following members:
     - RendererPose (namedtuple class, class member)
 
     - default_renderer_pose (instance of RendererPose, can be instance member)
+
+It may be a good idea to have default_renderer_pose set in __init__() so that
+any errors due to filesystem state happen on object creation and not object
+module load.
 '''
 
 # NOTE both this code and code for MouseScene load the scenefile. this code loads
 # it to get the default pose, which mousescene might be able to ignore in the
 # future. mousescene loads the scenefile for obvious rendering purposes.
 
-####################
-#  old and busted  #
-####################
-
-# TODO turn these into newhotness
-
-class PoseModel1(object):
-    scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
-    renderer_pose_tuple_len = 3+3*9
-    particle_pose_tuple_len = 3+2*9
-
-    def __init__(self):
-        f = np.load(self.scenefilepath)
-        self.joint_rotations = f['joint_rotations']
-
-        # first three elements (x,y,theta) are ignored because of sideinfo
-        self.default_particle_pose = np.zeros(self.particle_pose_tuple_len)
-        self.default_particle_pose[3::2] = self.joint_rotations[:,1] # y angles
-        self.default_particle_pose[4::2] = self.joint_rotations[:,2] # z angles
-
-    def expand_poses(self,poses):
-        poses = np.array(poses)
-        assert poses.ndim == 2
-
-        expandedposes = np.zeros((poses.shape[0],self.expanded_pose_tuple_len))
-
-        expandedposes[:,:3] = poses[:,:3]                    # copy in xytheta
-        expandedposes[:,3::3] = self.joint_rotations[na,:,0] # x angles
-        expandedposes[:,4::3] = poses[:,3::2]                # copy in y angles
-        expandedposes[:,5::3] = poses[:,4::2]                # copy in z angles
-
-        return expandedposes
-
-
-class PoseModel2(object):
-    scenefilepath = "renderer/data/mouse_mesh_low_poly2.npz"
-    renderer_pose_tuple_len = 8+3*6
-    particle_pose_tuple_len = 8+2*6
-
-    def __init__(self):
-        f = np.load(self.scenefilepath)
-        self.joint_rotations = f['joint_rotations']
-
-        self.default_particle_pose = np.zeros(self.particle_pose_tuple_len)
-
-        # first three elements (x,y,theta_yaw) are ignored because of sideinfo
-
-        # chosen from line 777 of <link>
-        self.default_pose[3] = 0. # z offset
-
-        # chosen from line 782 of <link>
-        self.default_pose[4] = 0. # theta_roll
-
-        # chosen from lines 788-790 of <link>
-        self.default_particle_pose[5] = 18.  # scale_width
-        self.default_particle_pose[6] = 18.  # scale_length
-        self.default_particle_pose[7] = 200. # scale_height
-
-        # joint angles from scenefile
-        self.default_particle_pose[8::2] = self.joint_rotations[:,1] # y angles
-        self.default_particle_pose[9::2] = self.joint_rotations[:,2] # z angles
-
-    def expand_poses(self,poses):
-        poses = np.array(poses)
-        assert poses.ndim == 2
-
-        expandedposes = np.zeros((poses.shape[0],self.expanded_pose_tuple_len))
-
-        expandedposes[:,:2] = poses[:,:2]                    # x y
-        expandedposes[:,2] = poses[:,3]                      # z
-        expandedposes[:,3] = poses[:,2]                      # theta_yaw
-        expandedposes[:,4] = poses[:,4]                      # copy in theta_roll
-        expandedposes[:,5:8] = np.abs(poses[:,5:8])          # copy in width, length and height scales
-        expandedposes[:,8::3] = self.joint_rotations[na,:,0] # x angles are fixed
-        expandedposes[:,9::3] = poses[:,8::2]                # copy in y angles
-        expandedposes[:,10::3] = poses[:,9::2]               # copy in z angles
-
-        return expandedposes
-
-
-#################
-#  new hotness  #
-#################
+##########
+#  base  #
+##########
 
 # the advantages of using a metaclass are allowing a PoseModel the freedom to
 # override __init__ or __new__, not requiring calling any specific PoseModelBase
@@ -123,9 +45,9 @@ class PoseModel2(object):
 
 class PoseModelMetaclass(type):
     def __new__(cls,name,bases,dct):
-        assert 'scenefilepath' in dct
-        assert 'RendererPose' in dct
-        assert 'ParticlePose' in dct
+        assert 'scenefilepath' in dct or any([hasattr(b,'scenefilepath') for b in bases])
+        assert 'RendererPose' in dct or any([hasattr(b,'RendererPose') for b in bases])
+        assert 'ParticlePose' in dct or any([hasattr(b,'ParticlePose') for b in bases])
 
         RP, PP = dct['RendererPose'], dct['ParticlePose']
         dct['_expand_indices'] = [RP._fields.index(x) for x in PP._fields]
@@ -146,6 +68,69 @@ class PoseModelBase(object):
             for pose in poses])
 
 
+################
+#  PoseModels  #
+################
+
+class PoseModel1(PoseModelBase):
+    '''
+    flattened mouse, 9 joints
+    '''
+
+    __metaclass__ = PoseModelMetaclass
+
+    scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
+
+    ParticlePose = namedtuple(
+            'PoseModel1.ParticlePose',
+            ['x','y','theta'] + ['psi_%s%d'%(v,i) for i in range(1,10) for v in ['y','z']])
+
+    RendererPose = namedtuple(
+            'PoseModel1.RendererPose',
+            ['x','y','theta'] + ['psi_%s%d'%(v,i) for i in range(1,10) for v in ['x','y','z']])
+
+    del i,v
+
+    def __init__(self):
+        f = np.load(self.scenefilepath)
+        self.joint_rotations = jr = f['joint_rotations']
+
+        self.default_renderer_pose = self.RendererPose(
+                x=0.,y=0.,theta=0.,
+                **dict(('psi_%s%d'%(v,i),jr[i,j]) for i in range(1,10) for j,v in enumerate(['x','y','z'])))
+
+class PoseModel2(PoseModelBase):
+    '''
+    includes theta_roll, axis scaling, and six full joints
+    '''
+
+    __metaclass__ = PoseModelMetaclass
+
+    scenefilepath = "renderer/data/mouse_mesh_low_poly2.npz"
+
+    ParticlePose = namedtuple(
+            'PoseModel2.ParticlePose',
+            ['x','y','theta_yaw','z','theta_roll','s_w','s_l','s_h'] + \
+             ['psi_%s%d'%(v,i) for i in range(1,7) for v in ['y','z']])
+
+    RendererPose = namedtuple(
+            'PoseModel2.ParticlePose',
+            ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
+             ['psi_%s%d'%(v,i) for i in range(1,7) for v in ['x','y','z']])
+
+    del i,v
+
+    def __init__(self):
+        f = np.load(self.scenefilepath)
+        self.joint_rotations = jr = f['joint_rotations']
+
+        self.default_renderer_pose = self.RendererPose(
+                x=0.,y=0.,z=0.,
+                theta_yaw=0.,theta_roll=0.,
+                s_w=18.,s_l=18.,s_h=200.,
+                **dict(('psi_%s%d'%(v,i),jr[i,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+
+
 class PoseModel3(PoseModelBase):
     '''
     five joints, not six as in Model2
@@ -157,22 +142,20 @@ class PoseModel3(PoseModelBase):
     scenefilepath = "renderer/data/mouse_mesh_low_poly3.npz"
 
     ParticlePose = namedtuple(
-            'Model3ParticlePose',
+            'PoseModel3.ParticlePose',
             ['x','y','theta_yaw',
              'z','theta_roll','s_w','s_l','s_h',
-             'psi_z1','psi_z2','psi_y3','psi_z3','psi_y4','psi_z4','psi_y5','psi_z5']
-            )
+             'psi_z1','psi_z2',
+             'psi_y3','psi_z3','psi_y4','psi_z4','psi_y5','psi_z5'])
 
     RendererPose = namedtuple(
-            'Model3RendererPose',
+            'PoseModel3.RendererPose',
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
-             ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']]
-            )
+             ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
+
     del i,v
 
     def __init__(self):
-        # construct DefaultPose for each instance so that any errors depending
-        # on filesystem state only happen on class instantiation, not on module load
         f = np.load(self.scenefilepath)
         self.joint_rotations = jr = f['joint_rotations']
 
@@ -180,9 +163,5 @@ class PoseModel3(PoseModelBase):
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
                 s_w=18.,s_l=18.,s_h=200.,
-                **joindicts((
-                             dict(('psi_x%d'%i,jr[i,0]) for i in range(1,6)),
-                             dict(('psi_y%d'%i,jr[i,1]) for i in range(1,6)),
-                             dict(('psi_z%d'%i,jr[i,2]) for i in range(1,6)),
-                            )))
+                **dict(('psi_%s%d'%(v,i),jr[i,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
