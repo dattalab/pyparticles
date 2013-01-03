@@ -12,25 +12,10 @@ import predictive_distributions as pd
 import particle_filter as pf
 from util.text import progprint_xrange
 
-################
-#  parameters  #
-################
+############################
+#  computation parameters  #
+############################
 
-### experiment parameters
-# datapath = os.path.join(os.path.dirname(__file__),"Test Data")
-# frame_indices = (5,180)
-# use_mouse_model_version = 1 # 1 or 2 for now, also affects _definitions below
-
-# TODO just put mousemodel stuff in their own files, import whichever model!
-
-    # scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
-    # expanded_pose_tuple_len = 3+3*9
-    # particle_pose_tuple_len = 3+2*9
-    # scenefilepath = "renderer/data/mouse_mesh_low_poly2.npz"
-    # expanded_pose_tuple_len = 8+3*6
-    # particle_pose_tuple_len = 8+2*6
-
-### computation parameters
 msNumRows, msNumCols = (32,32)
 num_particles = msNumRows*msNumCols*5
 
@@ -67,47 +52,6 @@ def _load_data_and_sideinfo(conf):
         images = np.array([image.T[::-1,:].astype('float32') for image in images])/354.0
     return xytheta, images
 
-##################################
-#  log_likelihood and rendering  #
-##################################
-
-# def _expand_poses1(poses):
-#     poses = np.array(poses)
-#     assert poses.ndim == 2
-
-#     expandedposes = np.zeros((poses.shape[0],expanded_pose_tuple_len))
-#     expandedposes[:,3::3] = ms.get_joint_rotations()[0,:,0] # x angles are fixed
-#     expandedposes[:,:3] = poses[:,:3] # copy in xytheta
-#     expandedposes[:,4::3] = poses[:,3::2] # copy in y angles
-#     expandedposes[:,5::3] = poses[:,4::2] # copy in z angles
-#     return expandedposes
-
-# def _expand_poses2(poses):
-#     poses = np.array(poses)
-#     assert poses.ndim == 2
-
-#     expandedposes = np.zeros((poses.shape[0],8+3*ms.num_bones))
-#     expandedposes[:,8::3] = ms.get_joint_rotations()[0,:,0] # x angles are fixed
-
-#     expandedposes[:,:2] = poses[:,:2] # x y
-#     expandedposes[:,2] = poses[:,3] # z
-#     expandedposes[:,3] = poses[:,2] # theta yaw
-#     expandedposes[:,4] = poses[:,4] # copy in theta roll
-#     expandedposes[:,5:8] = poses[:,5:8] # copy in width, length and height scales
-#     expandedposes[:,9::3] = poses[:,3::2] # copy in y angles
-#     expandedposes[:,10::3] = poses[:,4::2] # copy in z angles
-
-#     return expandedposes
-
-def render(conf,stepnum,poses):
-    warn('untested')
-    # might be slow; needs to do a full mousescene render pass
-    _build_mousescene(), _load_data_and_sideinfo()
-    return ms.get_likelihood(np.zeros((msNumRows,msNumCols)),particle_data=conf.mouse_model.expand_poses(poses),
-            x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2],
-            return_posed_mice=True)[1]
-
-
 #############
 #  running  #
 #############
@@ -134,18 +78,6 @@ def run(conf,num_particles,cutoff,num_particles_firststep):
         particlefilter.step(images[i],sideinfo=xytheta[i])
 
     return particlefilter
-
-
-    # # TODO ugly ugly ugly
-    # if use_mouse_model_version == 1:
-    #     initial_pose = np.zeros(particle_pose_tuple_len)
-    #     initial_pose[3::2] = ms.get_joint_rotations()[0,:,1] # y angles
-    #     initial_pose[4::2] = ms.get_joint_rotations()[0,:,2] # z angles
-
-    #     xytheta_noisechol = np.diag( (1e-3,)*2 + (1e-3,) )
-    #     joints_noisechol = np.diag( (10.,10.) + (10.,)*(2*8) )
-    # else:
-    #     raise NotImplementedError # TODO set variances
 
     # def log_likelihood(stepnum,im,poses):
     #     return ms.get_likelihood(im,particle_data=conf.mouse_model.expand_poses(poses),
@@ -197,6 +129,14 @@ def meantrack(particles,weights):
     for p,w in zip(particles[1:],weights[1:]):
         track += np.array(p.track) * w
     return track
+
+def render(conf,stepnum,poses):
+    warn('untested')
+    # might be slow; needs to do a full mousescene render pass
+    _build_mousescene(), _load_data_and_sideinfo()
+    return ms.get_likelihood(np.zeros((msNumRows,msNumCols)),particle_data=conf.mouse_model.expand_poses(poses),
+            x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2],
+            return_posed_mice=True)[1]
 
 ##########
 #  main  #
