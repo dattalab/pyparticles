@@ -7,8 +7,6 @@ import os
 from renderer.load_data import load_behavior_data
 from renderer.renderer import MouseScene
 
-import predictive_models as pm
-import predictive_distributions as pd
 import particle_filter as pf
 from util.text import progprint_xrange
 
@@ -30,7 +28,7 @@ ms = None # MouseScene object, global so that it's only built once
 xytheta = images = None # offset sideinfo sequence and image sequence
 
 def _build_mousescene(conf):
-    scenefilepath = conf.mouse_model.scenefilepath
+    scenefilepath = os.path.join(os.path.dirname(__file__),conf.mouse_model.scenefilepath)
 
     global ms
     if ms is None:
@@ -39,8 +37,9 @@ def _build_mousescene(conf):
         ms.gl_init()
     return ms
 
+# TODO this could be hidden in experiment_configurations.py
 def _load_data_and_sideinfo(conf):
-    datapath = conf.datapath
+    datapath = os.path.join(os.path.dirname(__file__),conf.datapath)
     frame_range = conf.frame_range
 
     global xytheta, images
@@ -58,7 +57,7 @@ def _load_data_and_sideinfo(conf):
 
 def run(conf,num_particles,cutoff,num_particles_firststep):
     # load 3D model object, data, sideinfo
-    ms = _build_mousescene(conf.mouse_model.scenefilepath)
+    ms = _build_mousescene(conf)
     xytheta, images = _load_data_and_sideinfo(conf)
 
     # build the particle filter
@@ -78,44 +77,6 @@ def run(conf,num_particles,cutoff,num_particles_firststep):
         particlefilter.step(images[i],sideinfo=xytheta[i])
 
     return particlefilter
-
-    # def log_likelihood(stepnum,im,poses):
-    #     return ms.get_likelihood(im,particle_data=conf.mouse_model.expand_poses(poses),
-    #         x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])
-
-
-    # initial_particles = [
-    #         pf.AR(
-    #                 numlags=1,
-    #                 previous_outputs=(initial_pose,),
-    #                 baseclass=lambda: \
-    #                     pm.Concatenation(
-    #                         components=(
-    #                             pm.SideInfo(noiseclass=lambda: pd.FixedNoise(xytheta_noisechol)),
-    #                             pm.RandomWalk(noiseclass=lambda:pd.FixedNoise(joints_noisechol))
-    #                         ),
-    #                         arggetters=(
-    #                             lambda d: {'sideinfo':d['sideinfo']},
-    #                             lambda d: {'lagged_outputs': map(lambda x: x[3:],d['lagged_outputs'])})
-    #                         )
-    #             ) for itr in range(num_particles*5)] # NOTE: 5x initial particles
-
-    # # create particle filter
-    # particlefilter = pf.ParticleFilter(particle_pose_tuple_len,num_particles/cutofffactor,log_likelihood,initial_particles)
-
-    # # first step is special
-    # particlefilter.step(images[0],sideinfo=xytheta[0])
-
-    # # change the number of particles and the noises
-    # xytheta_noisechol[:,:] = np.diag( (1e-2,)*2 + (1e-2,) )
-    # joints_noisechol[:,:] = np.diag( (3.,3.) + (3.,) * (2*8) )
-
-    # particlefilter.change_numparticles(num_particles)
-
-    # for i in progprint_xrange(1,5):
-    #     particlefilter.step(images[i],sideinfo=xytheta[i])
-
-    # return particlefilter
 
 ###########
 #  utils  #
@@ -144,7 +105,4 @@ def render(conf,stepnum,poses):
 
 if __name__ == '__main__':
     raise NotImplementedError # TODO
-    result = run_randomwalk_fixednoise_sideinfo(1)
-    np.save('top5tracks',np.array([_expand_poses(p.track) for p in topk(result.particles,result.weights_norm,5)]))
-    np.save('meantrack',_expand_poses(meantrack(result.particles,result.weights_norm)))
 
