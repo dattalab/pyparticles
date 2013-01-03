@@ -126,7 +126,7 @@ class MouseModel2(object):
         return expandedposes
 
 
-class MouseModel3(object):
+class MouseModel3(MouseModelABC):
     '''
     five joints, not six as in Model2
     don't propose over theta_roll or first two joints' y angles
