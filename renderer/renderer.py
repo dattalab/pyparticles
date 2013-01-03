@@ -35,6 +35,7 @@ class MouseScene(object):
 			get_poly_and_skin_info_maya.py), 
 			Display the polygon and the joint positions.
 		"""
+
 		super(MouseScene, self).__init__()
 		self.mouse_width = mouse_width
 		self.mouse_height = mouse_height
@@ -632,6 +633,7 @@ class MouseScene(object):
 		glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 	def setup_transformfeedback(self):
+		print "EYAEHLIF"
 		import ctypes as c 
 		self.transformFeedbackBuffer = glGenBuffers(1)
 		glBindBuffer(GL_ARRAY_BUFFER, self.transformFeedbackBuffer)
@@ -763,8 +765,8 @@ class MouseScene(object):
 
 def test_single_mouse():
 	path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Mouse No Median Filter, No Dilation')
-	which_img = 30
-	# which_img = 731
+	# which_img = 30
+	which_img = 731
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
