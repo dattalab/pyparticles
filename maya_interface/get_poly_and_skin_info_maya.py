@@ -2,8 +2,8 @@ from pymel.core import *
 import numpy as np
 
 # Select the mesh we care about
-mesh_name = "skin"
-out_name = "mouse_mesh_low_poly"
+mesh_name = "Mouse1"
+out_name = "mouse_mesh_low_poly3"
 cmds.select(mesh_name)
 
 # Get number of faces, number of vertices
@@ -74,11 +74,14 @@ for i,influence in enumerate(influences):
 
     rotations[i] = np.asarray( cmds.getAttr("%s.jointOrient"%influence) )
     translations[i] = cmds.xform(influence, translation=True, query=True)
-    print rotations[i]
+
+print rotations
+print translations
     
 
 
-np.savez("/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Models/%s.npz" % out_name, \
+
+np.savez("/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/hsmm-particlefilters/renderer/data/%s.npz" % out_name, \
                             normals=normals, vertices=vertices, faces=faces, \
                             joint_weights=joint_weights, joint_transforms=joint_transforms, \
                             joint_poses=joint_poses,\
