@@ -31,8 +31,6 @@ A Model object in this file must have the following members:
 # NOTE: in the comments below, the text <link> refers to
 # https://github.com/mattjj/hsmm-particlefilters/blob/ab175f229e219f5117fde5ce76921e0014419180/renderer/renderer.py
 
-warn('untested')
-
 class Model1(object):
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
     expanded_pose_tuple_len = 3+3*9
