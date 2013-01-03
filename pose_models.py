@@ -63,9 +63,6 @@ class PoseModelBase(object):
         expanded[:,self._expand_indices] = poses
         return expanded
 
-    def _expand_poses_old(self,poses):
-        return np.array([self.default_renderer_pose._replace(**self.ParticlePose(*pose).__dict__)
-            for pose in poses])
 
 
 ################
@@ -131,7 +128,7 @@ class PoseModel2(PoseModelBase):
                 **dict(('psi_%s%d'%(v,i),jr[i,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
 
-class PoseModel3(PoseModelBase):
+class PoseModel3(PoseModel2):
     '''
     five joints, not six as in Model2
     don't propose over theta_roll or first two joints' y angles
@@ -148,20 +145,5 @@ class PoseModel3(PoseModelBase):
              'psi_z1','psi_z2',
              'psi_y3','psi_z3','psi_y4','psi_z4','psi_y5','psi_z5'])
 
-    RendererPose = namedtuple(
-            'PoseModel3.RendererPose',
-            ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
-             ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
-
     del i,v
-
-    def __init__(self):
-        f = np.load(self.scenefilepath)
-        self.joint_rotations = jr = f['joint_rotations']
-
-        self.default_renderer_pose = self.RendererPose(
-                x=0.,y=0.,z=0.,
-                theta_yaw=0.,theta_roll=0.,
-                s_w=18.,s_l=18.,s_h=200.,
-                **dict(('psi_%s%d'%(v,i),jr[i,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
