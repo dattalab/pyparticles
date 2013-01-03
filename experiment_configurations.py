@@ -28,11 +28,16 @@ class Experiment1(object):
     datapath = "Test Data"
     frame_range = (5,180)
 
-    _initial_xytheta_noisechol = None
-    _initial_joints_noisechol = None
+    # chosen from lines 774 and 781 of
+    # https://github.com/mattjj/hsmm-particlefilters/blob/ab175f229e219f5117fde5ce76921e0014419180/renderer/renderer.py
+    _initial_xytheta_noisechol = np.diag((1.,1.,3.)) # x, y, theta_yaw
 
-    _subsequent_xytheta_noisechol = None
-    _subsequent_joints_noisechol = None
+    # chosen from lines 777, 788-790, and 801-802 of
+    # https://github.com/mattjj/hsmm-particlefilters/blob/ab175f229e219f5117fde5ce76921e0014419180/renderer/renderer.py
+    _initial_randomwalk_noisechol = np.diag((3.,2.,2.,10.,) + (20.)*(2+2*3)) # z, s_w, s_l, s_h
+
+    _subsequent_xytheta_noisechol = _initial_xytheta_noisechol / 2.5
+    _subsequent_randomwalk_noisechol = _initial_randomwalk_noisechol / 2.5
 
     def __init__(self):
         self.mouse_model = mouse_models.Model3()
@@ -41,7 +46,7 @@ class Experiment1(object):
         # having them in separate memory keeps them distinct from this class's
         # parameters (and any other instance's changes)
         self._xytheta_noisechol = self._initial_xytheta_noisechol.copy()
-        self._joints_noisechol = self._initial_joints_noisechol.copy()
+        self._randomwalk_noisechol = self._initial_randomwalk_noisechol.copy()
 
     def get_initial_particles(self,num_particles_firststep):
         return [pf.AR(
@@ -51,7 +56,7 @@ class Experiment1(object):
                         pm.Concatenation(
                             components=(
                                 pm.SideInfo(noiseclass=lambda: pd.FixedNoise(self._xytheta_noisechol)),
-                                pm.RandomWalk(noiseclass=lambda:pd.FixedNoise(self._joints_noisechol))
+                                pm.RandomWalk(noiseclass=lambda:pd.FixedNoise(self._randomwalk_noisechol))
                             ),
                             arggetters=(
                                 lambda d: {'sideinfo':d['sideinfo']},
@@ -67,5 +72,5 @@ class Experiment1(object):
 
     def first_step_done(self,particlefilter):
         self._xytheta_noisechol[:] = self._subsequent_xytheta_noisechol[:]
-        self._joints_noisechol[:] = self._subsequent_joints_noisechol[:]
+        self._randomwalk_noisechol[:] = self._subsequent_randomwalk_noisechol[:]
 

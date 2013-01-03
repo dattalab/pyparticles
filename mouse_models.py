@@ -97,7 +97,7 @@ class Model2(object):
         expandedposes[:,2] = poses[:,3]                      # z
         expandedposes[:,3] = poses[:,2]                      # theta_yaw
         expandedposes[:,4] = poses[:,4]                      # copy in theta_roll
-        expandedposes[:,5:8] = poses[:,5:8]                  # copy in width, length and height scales
+        expandedposes[:,5:8] = np.abs(poses[:,5:8])          # copy in width, length and height scales
         expandedposes[:,8::3] = self.joint_rotations[na,:,0] # x angles are fixed
         expandedposes[:,9::3] = poses[:,8::2]                # copy in y angles
         expandedposes[:,10::3] = poses[:,9::2]               # copy in z angles
@@ -144,7 +144,7 @@ class Model3(object):
         expandedposes[:,2] = poses[:,3]                            # z
         expandedposes[:,3] = poses[:,2]                            # theta_yaw
         expandedposes[:,4] = 0.                                    # theta_roll is fixed
-        expandedposes[:,5:8] = poses[:,5:8]                        # copy in width, length and height scales
+        expandedposes[:,5:8] = np.abs(poses[:,5:8])                # copy in width, length and height scales
         expandedposes[:,8::3] = self.joint_rotations[na,:,0]       # x angles are fixed
         expandedposes[:,9:9+3*2:3] = self.joint_rotations[na,:2,1] # first two y angles are fixed
         expandedposes[:,10:10+3*2:3] = poses[:,7:9]                # first two z angles are in a weird spot
