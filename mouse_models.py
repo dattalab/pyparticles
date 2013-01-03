@@ -27,7 +27,7 @@ A Model object in this file must have the following members:
     they are required for the default expand_poses()
     - ParticlePose (namedtuple class)
     - RendererPose (namedtuple class)
-    - DefaultPose (instance of RendererPose)
+    - default_renderer_pose (instance of RendererPose)
 '''
 
 # NOTE both this code and code in mousescene load the scenefile. this code loads
@@ -50,7 +50,8 @@ class MouseModelABC(object):
 
     def expand_poses(self,poses):
         # this default version can be overridden if it is too slow
-        return np.array([self.DefaultPose._replace(**self.ParticlePose(*pose).__dict__) for pose in poses])
+        return np.array([self.default_renderer_pose._replace(**self.ParticlePose(*pose).__dict__)
+            for pose in poses])
 
 class MouseModel1(object):
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
@@ -156,7 +157,7 @@ class MouseModel3(MouseModelABC):
         f = np.load(self.scenefilepath)
         self.joint_rotations = jr = f['joint_rotations']
 
-        self.DefaultValues = self.RendererPose(
+        self.default_renderer_pose = self.RendererPose(
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
                 s_w=18.,s_l=18.,s_h=200.,
