@@ -145,5 +145,3 @@ class PoseModel3(PoseModel2):
              'psi_z1','psi_z2',
              'psi_y3','psi_z3','psi_y4','psi_z4','psi_y5','psi_z5'])
 
-    del i,v
-
