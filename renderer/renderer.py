@@ -11,6 +11,8 @@ from OpenGL.arrays import vbo
 from OpenGL.GL.ARB.draw_instanced import *
 from OpenGL.GL.ARB.texture_buffer_object import *
 from OpenGL.GL.framebufferobjects import *
+from OpenGL.GL.EXT.transform_feedback import *
+
 from mako.template import Template
 
 import transformations as tr
