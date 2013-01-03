@@ -30,14 +30,16 @@ class Experiment1(object):
 
     # chosen from lines 774 and 781 of
     # https://github.com/mattjj/hsmm-particlefilters/blob/ab175f229e219f5117fde5ce76921e0014419180/renderer/renderer.py
-    _initial_xytheta_noisechol = np.diag((1.,1.,3.)) # x, y, theta_yaw
+    # x, y, theta_yaw
+    _initial_xytheta_noisechol = np.diag((1.,1.,3.))
 
     # chosen from lines 777, 788-790, and 801-802 of
     # https://github.com/mattjj/hsmm-particlefilters/blob/ab175f229e219f5117fde5ce76921e0014419180/renderer/renderer.py
-    _initial_randomwalk_noisechol = np.diag((3.,2.,2.,10.,) + (20.)*(2+2*3)) # z, s_w, s_l, s_h
+    # z, s_w, s_l, s_h, phi_z^1, phi_z^2, phi_y^3, phi_z^3, phi_y^4, phi_z^4,...
+    _initial_randomwalk_noisechol = np.diag((3.,2.,2.,10.,) + (20.)*(2+2*3))
 
-    _subsequent_xytheta_noisechol = _initial_xytheta_noisechol / 2.5
-    _subsequent_randomwalk_noisechol = _initial_randomwalk_noisechol / 2.5
+    _subsequent_xytheta_noisechol = _initial_xytheta_noisechol
+    _subsequent_randomwalk_noisechol = _initial_randomwalk_noisechol / 2.5 # TODO guessed
 
     def __init__(self):
         self.mouse_model = mouse_models.Model3()
