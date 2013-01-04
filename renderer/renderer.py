@@ -633,7 +633,6 @@ class MouseScene(object):
 		glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 	def setup_transformfeedback(self):
-		print "EYAEHLIF"
 		import ctypes as c 
 		self.transformFeedbackBuffer = glGenBuffers(1)
 		glBindBuffer(GL_ARRAY_BUFFER, self.transformFeedbackBuffer)
@@ -763,25 +762,25 @@ class MouseScene(object):
 		else:
 			return all_likelihoods
 
-def test_single_mouse():
+def test_single_mouse(which_img=731, ms=None, num_particles = 32**2):
 	path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Mouse No Median Filter, No Dilation')
-	which_img = 30
+	# which_img = 30
 	# which_img = 731
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
 
-	num_particles = 64**2
 	numCols = 32
 	numRows = 32
 	scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly3.npz")
 
 	useFramebuffer = False
-	ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
-								scale_width = 18.0, scale_height = 200.0, 
-								scale_length = 18.0, \
-								numCols=numCols, numRows=numRows, useFramebuffer=useFramebuffer)
-	ms.gl_init()
+	if ms == None:
+		ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
+									scale_width = 16.0, scale_height = 200.0, 
+									scale_length = 16.0, \
+									numCols=numCols, numRows=numRows, useFramebuffer=useFramebuffer)
+		ms.gl_init()
 
 
 	# Figure out the number of passes we'll be making
@@ -795,7 +794,7 @@ def test_single_mouse():
 	particle_data[1:,:2] = np.random.normal(loc=0, scale=1, size=(num_particles-1, 2))
 
 	# Set the vertical offset
-	particle_data[1:,2] = np.random.normal(loc=0.0, scale=3.0, size=(num_particles-1,))
+	particle_data[1:,2] = np.random.normal(loc=0.0, scale=5.0, size=(num_particles-1,))
 
 	# Set the angles (yaw and roll)
 	theta_val = 0
@@ -806,21 +805,21 @@ def test_single_mouse():
 	particle_data[0,5] = np.max(ms.scale_width)
 	particle_data[0,6] = np.max(ms.scale_length)
 	particle_data[0,7] = np.max(ms.scale_height)
-	particle_data[1:,5] = np.random.normal(loc=18, scale=2, size=(num_particles-1,))
-	particle_data[1:,6] = np.random.normal(loc=18, scale=2, size=(num_particles-1,))
+	particle_data[1:,5] = np.random.normal(loc=17, scale=2, size=(num_particles-1,))
+	particle_data[1:,6] = np.random.normal(loc=17, scale=2, size=(num_particles-1,))
 	particle_data[1:,7] = np.abs(np.random.normal(loc=200.0, scale=10, size=(num_particles-1,)))
 
 	# Grab the baseline joint rotations
-	rot = ms.get_joint_rotations().copy()
-	rot = np.tile(rot, (num_passes, 1, 1))
+	orig_rot = ms.get_joint_rotations().copy()
+	rot = np.tile(orig_rot, (num_passes, 1, 1))
 	particle_data[:,8::3] = rot[:,:,0]
 	particle_data[:,9::3] = rot[:,:,1]
 	particle_data[:,10::3] = rot[:,:,2]
 
 	# Add noise to the baseline rotations (just the pitch and yaw for now)
 	# particle_data[1:,8::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
-	particle_data[1:,9+6::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones-2))
-	particle_data[1:,10::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
+	particle_data[1:,9+6::3] += np.random.normal(scale=30, size=(num_particles-1, ms.num_bones-2))
+	particle_data[1:,10::3] += np.random.normal(scale=30, size=(num_particles-1, ms.num_bones))
 
 
 	likelihoods, posed_mice = ms.get_likelihood(image, \
@@ -835,11 +834,11 @@ def test_single_mouse():
 	real_rotations = np.hstack((rot[:,:,1], rot[:,:,2]))
 	rotation_diffs = np.sum((particle_rotations - real_rotations)**2.0, 1)
 
-	figure();
-	plot(rotation_diffs, likelihoods, '.k')
-	ylabel("Likelihood")
-	xlabel("Rotation angle differences")
-	title("Rotation angle difference versus likelihood")
+	# figure();
+	# plot(rotation_diffs, likelihoods, '.k')
+	# ylabel("Likelihood")
+	# xlabel("Rotation angle differences")
+	# title("Rotation angle difference versus likelihood")
 
 	binrange = (0,3000)
 	num_bins = 10
@@ -847,7 +846,7 @@ def test_single_mouse():
 	index = np.digitize(rotation_diffs, bins)
 	means = [np.mean(likelihoods[index==i]) for i in range(num_bins)]
 	errs = [np.std(likelihoods[index==i]) for i in range(num_bins)]
-	errorbar(bins, means, yerr=errs, linewidth=2)
+	# errorbar(bins, means, yerr=errs, linewidth=2)
 	# savefig("/Users/Alex/Desktop/angle vs likelihood.png")
 	# figure(); imshow(ms.likelihood)
 	# figure(); imshow(ms.data); colorbar()
@@ -856,23 +855,30 @@ def test_single_mouse():
 
 	# Find the five best mice
 	idx = np.argsort(likelihoods)
-	fivebest = np.hstack(posed_mice[idx[-5:]])
+	fivebest = np.hstack(posed_mice[idx[-1:]])
 	# Show first the raw mouse, then my hand-posed mouse, and then the five best poses
 	
-	figure()
+	figure(figsize=(8,3))
 	title("Five best (best, far right)")
-	imshow(np.hstack((ms.mouse_img, posed_mice[0], fivebest)))
-	vlines(ms.mouse_width, 0, ms.mouse_height, linewidth=3, color='w')
+	image_to_display = np.hstack((ms.mouse_img, posed_mice[0], fivebest))
+	imshow(image_to_display)
+	vlines(ms.mouse_width, 0, ms.mouse_height, linewidth=10, color='k')
 	text(ms.mouse_width/2.0, ms.mouse_width*0.9,'Real Mouse',
 		 horizontalalignment='center',
 		 verticalalignment='center',
 		 color='white')
-	vlines(ms.mouse_width*2, 0, ms.mouse_height, linewidth=3, color='w')
+	vlines(ms.mouse_width*2, 0, ms.mouse_height, linewidth=10, color='k')
 	text(ms.mouse_width*1.5, ms.mouse_width*0.9,'Unposed Mouse',
 		 horizontalalignment='center',
 		 verticalalignment='center',
 		 color='white')
+	text(image_to_display.shape[1] - ms.mouse_width*0.5, ms.mouse_width*0.9,'Best Fit Mouse',
+		 horizontalalignment='center',
+		 verticalalignment='center',
+		 color='white')	
+	clim(0,300)
 
+	ms.set_joint_rotations(orig_rot)
 	return ms, rotation_diffs, likelihoods, particle_data, posed_mice
 
 
