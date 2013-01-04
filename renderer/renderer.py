@@ -509,13 +509,13 @@ class MouseScene(object):
 
 			// Calculate a joint's local rotation matrix
 			localRotation = calcLocalRotation(rotation[${i}], translation[${i}]);
-		
+			
 			// Calculate its world position
 			jointWorldMatrix = localRotation*lastJointWorldMatrix;
 			
 			// Multiply the inverse binding matrix into the world matrix
 			posingMatrix[${i}] = bindingMatrixInverse[${i}] * jointWorldMatrix;
-		
+			
 			// Get ready for the next iteration
 			lastJointWorldMatrix = jointWorldMatrix;
 

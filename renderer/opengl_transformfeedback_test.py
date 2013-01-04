@@ -16,6 +16,7 @@ from OpenGL.GL.EXT.transform_feedback import *
 from OpenGL.GL.NV.transform_feedback import *
 from OpenGL.raw.GL.NV.geometry_program4 import *
 from OpenGL.raw.GL import *
+from mako.template import Template
 
 program = None
 program2 = None
@@ -60,14 +61,14 @@ def setup_transformfeedbackbuffer():
         [0.6,  0.45, -0.3, 1 ],
         [0.45, 0.47, -0.3, 1 ]
     ], dtype='float32')
-    
+    data = np.tile(data, (1,5))
 
     transformBuffer = vbo.VBO(data, 
                             usage="GL_DYNAMIC_DRAW", 
                             target="GL_ARRAY_BUFFER")
     glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, transformBuffer)
 
-    feedback_data = np.zeros((6, 16+4), dtype='float32')
+    feedback_data = np.zeros((6, 16+4*2), dtype='float32')
     feedbackBuffer = vbo.VBO(feedback_data, 
                             usage="GL_DYNAMIC_DRAW", 
                             target="GL_ARRAY_BUFFER")
@@ -79,18 +80,37 @@ def setup_shaders():
 
     vs = glCreateShader(GL_VERTEX_SHADER)
     vs_source = """
+    attribute mat4 test;
     varying mat4 posish;
-    varying vec4 a_color;
+    varying mat2 a_color[2];
 
     void main()
     {
         gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-        posish[0] = gl_Position.xyzw;
-        a_color = vec4(1.0, 0.0, 0.0, 1.0);
+        posish[0] = gl_Position.xyzw + test[0].xyzw;
+        // a_color = vec4(1.0, 0.0, 0.0, 1.0);
+        a_color[0][0].xy = vec2(1.0, 0.0);
+        a_color[0][1].xy = vec2(0.0, 1.0);
     }
     """
+    makoTemplate = Template(vs_source)
+    makoTemplate.render(num_joints=9)
     glShaderSource(vs, vs_source)
     glCompileShader(vs)
+
+    result = glGetShaderiv( vs, GL_COMPILE_STATUS )
+    if not(result):
+        # TODO: this will be wrong if the user has
+        # disabled traditional unpacking array support.
+        raise RuntimeError(
+            """Shader compile failure (%s): %s"""%(
+                result,
+                glGetShaderInfoLog( vs ),
+            ),
+            vs_source,
+            GL_VERTEX_SHADER,
+        )
+
     
     program = glCreateProgram()
     glAttachShader(program, vs)
@@ -138,7 +158,6 @@ def configure_shaders():
             link_status,
             glGetProgramInfoLog( program ),
         ))
-
 
     # l = c.c_int(0)
     # the_length = c.pointer(l)
@@ -201,9 +220,9 @@ def display():
     
     transformBuffer.bind()
 
-    stride = (4+4)*4
+    stride = (4+4*4)*4
     glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer( 4, GL_FLOAT, 0, transformBuffer ); # '4' because we have used glVertex4f() above
+    glVertexPointer( 4, GL_FLOAT, stride, transformBuffer ); # '4' because we have used glVertex4f() above
 
     glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, query)
     glBeginTransformFeedbackEXT( GL_TRIANGLES );
@@ -224,7 +243,7 @@ def display():
     glViewport( 256,0, 256,256 );
 
 
-    stride = (16+4)*4
+    stride = (16+4*2)*4
     glUseProgram(program2)
     feedbackBuffer.bind()
 
