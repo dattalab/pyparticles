@@ -1,4 +1,5 @@
 from __future__ import division
+import ctypes
 
 import numpy as np
 
@@ -116,7 +117,7 @@ class MouseScene(object):
 		self.jointPoints = None
 		self.index_vbo = None
 		self.mesh_vbo = None
-		self.shaderProgram = None
+		self.renderProgram = None
 		
 		# Timing variables
 		self.lasttime = time.time()
@@ -156,15 +157,19 @@ class MouseScene(object):
 		call update_vertex_mesh() afterwards.
 		"""
 
+		# Setup the index VBO
+		# ========================================
 		vidx = self.vertex_idx.ravel().astype('uint16')
 		self.index_vbo = vbo.VBO(vidx, target=GL_ELEMENT_ARRAY_BUFFER)
 
 		self.vertices = self.skin.get_posed_vertices()[:,:3].astype('float32') # leave off the scale parameter
 
+
+		# Setup the vertex VBO
+		# ========================================
 		# vertices: x,y,z
 		# vertex weights: per-bone weight
 		# joint index: which joint each weight correspond to
-
 		# Calculate the indices of the non-zero joint weights
 		# In the process, if we have vertices that have less
 		# than the maximum number of joint influences,
@@ -184,6 +189,19 @@ class MouseScene(object):
 
 		self.vert_data = np.hstack((self.vertices[:,:3], nonzero_joint_weights, joint_idx)).astype('float32')
 		self.mesh_vbo = vbo.VBO(self.vert_data)
+
+		# Setup the transform feedback VBOs
+		# ========================================
+		# These are two separate VBOs:
+		# - Buffer containing the joint rotations
+		# - Buffer receiving the posingMatrices
+		self.jointRotation_vbo = vbo.VBO(self.get_joint_rotations())
+		identity_posing_matrices = np.array([np.eye(4) for i in range(self.num_bones)])[np.newaxis,:,:,:]
+		identity_posing_matrices = np.tile(identity_posing_matrices, (self.num_mice,1,1,1))
+		self.posingMatrix_vbo = vbo.VBO(identity_posing_matrices)
+		# Now, bind the matrices are transform feedback buffers
+		glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, self.jointRotation_vbo)
+		glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, self.posingMatrix_vbo)
 
 
 
@@ -280,7 +298,7 @@ class MouseScene(object):
 		self.index_vbo.bind()
 
 		# Turn on our shaders
-		glUseProgram(self.shaderProgram)
+		glUseProgram(self.renderProgram)
 
 		# Draw the poly mesh
 		# ==============================
@@ -339,15 +357,15 @@ class MouseScene(object):
 			glUniform3fv(self.rotation_location, self.num_bones, self.rotations[i])
 			
 			# Rotate the mouse, and draw the mouse
-			glTranslate(x[i], 0.0, y[i])
+			glTranslate(x[i], z[i], y[i])
 			
-			# glRotate(val, 0.0, 0.0, 1.0)
-			# glRotate(-theta[i], 0., 1., 0.)
+			glRotate(theta_roll[i], 0.0, 0.0, 1.0)
+			glRotate(-theta_yaw[i], 0., 1., 0.)
 			
 			glDrawElements(GL_TRIANGLES, self.num_indices, GL_UNSIGNED_SHORT, self.index_vbo)
-			# glRotate(theta[i], 0., 1., 0.)
-			# glRotate(-val, 0.0, 0.0, 1.0)
-			glTranslate(-x[i], 0.0, -y[i])
+			glRotate(theta_yaw[i], 0., 1., 0.)
+			glRotate(theta_roll[i], 0.0, 0.0, 1.0)
+			glTranslate(-x[i], -z[i], -y[i])
 
 		# Time for cleanup. Unbind the VBOs and disable draw modes.
 		self.mesh_vbo.unbind()
@@ -409,31 +427,32 @@ class MouseScene(object):
 			print 'Missing Shader Objects!'
 			sys.exit(1)
 
+
+		# Setup the transform feedback shaders (to compute posing matrices)
+		# ========================================
 		vertexShaderString = """
 		#version 120
-		// Application to vertex shader
-		varying vec4 vertex_color;
-		uniform float offsetx;
-		uniform float offsety;
-		uniform float offsetz;
-		uniform float scale_width;
-		uniform float scale_height;
-		uniform float scale_length;
-		uniform float theta_yaw;
-		uniform float theta_roll;
-		uniform vec2 height_range;
-
-		uniform vec3 rotation[${num_joints}]; // rotations on each joint
-		uniform vec3 translation[${num_joints}]; // translations of each joint from the previous
-		uniform mat4 bindingMatrixInverse[${num_joints}]; // the inverse binding matrix
-		attribute vec4 joint_weights;
-		attribute vec4 joint_indices;
+		varying mat4 posingMatrix[${num_joints}];
+		
+		% for i in range(num_joints):
+		attribute vec3 rotation${i};
+		% endfor
+		uniform vec3 translations[${num_joints}];
+		uniform mat4 bindingMatrixInverse[${num_joints}];
 
 		mat4 lastJointWorldMatrix = mat4(1.0);
 		mat4 jointWorldMatrix = mat4(1.0);
-		mat4[${num_joints}] posingMatrix;
 		mat4 localRotation = mat4(1.0);
 
+		// TODO: figure out if this hack is necessary when operating on a varying, 
+		// instead of an internally-declared variable
+		mat4 mat_at_i(mat4 A[${num_joints}], int the_index) {
+			if (the_index == 0) { return A[0]; }
+
+			% for i in range(num_joints):
+			else if (the_index == ${i}) { return A[${i}]; }
+			% endfor
+		}
 
 		mat4 calcLocalRotation(in vec3 rotation, in vec3 translation) {
 
@@ -471,44 +490,20 @@ class MouseScene(object):
 			return Tout;
 		}
 
-		mat4 mat_at_i(mat4 A[${num_joints}], int the_index) {
-			if (the_index == 0) { return A[0]; }
-
-			% for i in range(num_joints):
-
-			else if (the_index == ${i}) { return A[${i}]; }
-
-			% endfor
-			
-		}
-
-		mat4[${num_joints}] set_mat_at_i(mat4 A[${num_joints}], mat4 B, int the_index) {
-			if (the_index == 0) { A[0] = B; return A; }
-
-			% for i in range(num_joints):
-
-			else if (the_index == ${i}) { A[${i}] = B; return A; }
-
-			% endfor
-		}
-		
-		void main()
-		{	
-
+		void main() {
 			// For each joint
 			// 1. calculate its local rotation matrix
 			// 2. calculate its world position from the previous joint's world matrix
 			// 3. multiply its inverse binding matrix into its world matrix as the posing matrix
 			// 4. multiply the posing matrix into the vertex
 			
-			// NOTE: there can be no for loops over declared arrays
-			// on Apple graphics hardware. It is absolutely ridiculous. 
-			// So, I'm using a templated loop with Mako. 
+			// TODO: figure out if we have to still use Mako loops
+			// when we're not looping over declared arrays anymore (using varyings)
 
 			% for i in range(num_joints):
 
 			// Calculate a joint's local rotation matrix
-			localRotation = calcLocalRotation(rotation[${i}], translation[${i}]);
+			localRotation = calcLocalRotation(rotation${i}, translations[${i}]);
 			
 			// Calculate its world position
 			jointWorldMatrix = localRotation*lastJointWorldMatrix;
@@ -521,8 +516,82 @@ class MouseScene(object):
 
 			% endfor
 
+		}
 
-			// Calculate a joint's local rotation matrix
+
+		"""
+		makoTemplate = Template(vertexShaderString)
+		vertexShaderString = makoTemplate.render(num_joints=self.num_bones)
+		vertexShader = shaders.compileShader(vertexShaderString, GL_VERTEX_SHADER)
+
+		# For this transform feedback shader, we don't use a fragment shader,
+		# and we also don't link it until we've declared which varyings will
+		# be captured.
+		self.transformFeedbackProgram = glCreateProgram()
+		glAttachShader(self.transformFeedbackProgram, vertexShader)
+		glDeleteShader(vertexShader)
+
+		# Declare the varyings to capture in the transform feedback
+		varyings = ["posingMatrix"]
+		arr = (ctypes.c_char_p * (len(varyings) + 1))()
+		arr[:-1] = varyings
+		arr[ len(varyings) ] = None
+		arr = ctypes.cast(arr, ctypes.POINTER(ctypes.POINTER(GLchar))) 
+		print arr
+		glTransformFeedbackVaryingsEXT(self.transformFeedbackProgram, 1, arr, GL_INTERLEAVED_ATTRIBS_EXT)
+
+		import ctypes as c
+		global program
+		glLinkProgram(self.transformFeedbackProgram)
+		glValidateProgram(self.transformFeedbackProgram)
+		validation = glGetProgramiv(self.transformFeedbackProgram, GL_VALIDATE_STATUS)
+		if validation == GL_FALSE:
+			raise RuntimeError(
+				"""Validation failure (%s): %s"""%(
+				validation,
+				glGetProgramInfoLog( self.transformFeedbackProgram ),
+			))
+		link_status = glGetProgramiv( self.transformFeedbackProgram, GL_LINK_STATUS )
+		if link_status == GL_FALSE:
+			raise RuntimeError(
+				"""Link failure (%s): %s"""%(
+				link_status,
+				glGetProgramInfoLog( self.transformFeedbackProgram ),
+			))
+
+
+		# Setup the rendering shaders (to show the mice)
+		# ========================================
+
+		vertexShaderString = """
+		#version 120
+		// Application to vertex shader
+		varying vec4 vertex_color;
+		uniform float offsetx;
+		uniform float offsety;
+		uniform float offsetz;
+		uniform float scale_width;
+		uniform float scale_height;
+		uniform float scale_length;
+		uniform vec2 height_range;
+
+		attribute vec4 joint_weights;
+		attribute vec4 joint_indices;
+
+		uniform mat4 posingMatrix[${num_joints}];
+		
+		mat4 mat_at_i(mat4 A[${num_joints}], int the_index) {
+			if (the_index == 0) { return A[0]; }
+
+			% for i in range(num_joints):
+			else if (the_index == ${i}) { return A[${i}]; }
+			% endfor
+		}
+
+
+		void main()
+		{	
+
 			vec4 vertex = vec4(0., 0., 0., 0.0);
 			int index;
 
@@ -540,10 +609,6 @@ class MouseScene(object):
 			// vertex[0] = vertex[0]+offsetx;
 			// vertex[1] = vertex[1]+offsetz;
 			// vertex[2] = vertex[2]+offsety;
-
-			// TODO: get the roll working again
-			mat4 yaw = calcLocalRotation(vec3(0.0, theta_yaw, 0.0), vec3(0.0));
-			vertex = vertex * yaw;
 
 			// Transform vertex by modelview and projection matrices
 			gl_Position = gl_ModelViewProjectionMatrix * vertex;
@@ -572,8 +637,24 @@ class MouseScene(object):
 
 		""", GL_FRAGMENT_SHADER)
 
-		self.shaderProgram = shaders.compileProgram(vertexShader, fragmentShader)
+		self.renderProgram = shaders.compileProgram(vertexShader, fragmentShader)
 
+		# Get the uniform and attribute locations for the transform feedback shader
+		# ========================================
+		for uniform in ['translations', 'bindingMatrixInverse']:
+			location = glGetUniformLocation(self.transformFeedbackProgram, uniform)
+			name = uniform+"_location"
+			setattr(self, uniform+"_location", location)
+		for i in range(self.num_bones):
+			attribute = "rotation%d" % i
+			location = glGetAttribLocation(self.renderProgram, attribute)
+			setattr(self, attribute+"_location", location)
+
+
+
+
+		# Get the uniform and attribute locations for the rendering shader
+		# ========================================
 		# Now, let's make sure our uniform and attribute value value will be sent 
 		# for uniform in ['joints', 'scale', 'offsetx', 'offsety', 'rotation', 'translation', 'bindingMatrixInverse']:
 		for uniform in ['scale_length', 'scale_width', 'scale_height', \
@@ -581,18 +662,18 @@ class MouseScene(object):
 							'theta_yaw', 'theta_roll', \
 							'height_range',\
 							'rotation', 'translation', 'bindingMatrixInverse']:
-			location = glGetUniformLocation(self.shaderProgram, uniform)
+			location = glGetUniformLocation(self.renderProgram, uniform)
 			name = uniform+"_location"
 			setattr(self, uniform+"_location", location)
 		for attribute in ['joint_weights', 'joint_indices']:
-			location = glGetAttribLocation(self.shaderProgram, attribute)
+			location = glGetAttribLocation(self.renderProgram, attribute)
 			setattr(self, attribute+"_location", location)
 
 		# There's a couple uniforms that never change
 		# For now, the inverse binding matrix, and the joint translations
 		# (the skeleton morphology does not change, and joints only rotate, 
 		#	they don't slide)
-		glUseProgram(self.shaderProgram)
+		glUseProgram(self.renderProgram)
 		joints = self.skin.jointChain.joints
 		Bi = np.array([np.array(j.Bi.copy()) for j in joints]).astype('float32')
 		glUniformMatrix4fv(self.bindingMatrixInverse_location, self.num_bones, True, Bi)
@@ -632,22 +713,6 @@ class MouseScene(object):
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
-	def setup_transformfeedback(self):
-		import ctypes as c 
-		self.transformFeedbackBuffer = glGenBuffers(1)
-		glBindBuffer(GL_ARRAY_BUFFER, self.transformFeedbackBuffer)
-		glBufferData(GL_ARRAY_BUFFER, 1024, None, GL_DYNAMIC_DRAW)
-
-		glBindBufferBaseEXT(GL_TRANSFORM_FEEDBACK_BUFFER_EXT, 0, self.transformFeedbackBuffer)
-
-		# Learned this crazy trick from
-		# https://groups.google.com/group/pyglet-users/tree/browse_frm/month/2008-2/3d2fbc1f8dc29e33?rnum=301&start=250&_done=/group/pyglet-users/browse_frm/month/2008-2?start%3D250%26sa%3DN%26&pli=1
-		buff = c.create_string_buffer("gl_Position") 
-		c_text = c.cast(c.pointer(c.pointer(buff)), c.POINTER(c.POINTER(GLchar))) 
-
-		glTransformFeedbackVaryingsEXT(self.shaderProgram, 1, c_text, GL_INTERLEAVED_ATTRIBS_EXT)
-
-
 	def gl_init(self):
 
 		glutInit([])
@@ -673,10 +738,10 @@ class MouseScene(object):
 
 		# Setup our VBOs and shaders
 		self.setup_vbos()
+		# self.setup_transformfeedback()
 		self.update_vertex_mesh()
 		self.setup_shaders()
 		self.setup_texture()
-		self.setup_transformfeedback()
 		if self.useFramebuffer:
 			self.setup_fbo()
 
@@ -794,18 +859,18 @@ def test_single_mouse(which_img=731, ms=None, num_particles = 32**2):
 	particle_data[1:,:2] = np.random.normal(loc=0, scale=1, size=(num_particles-1, 2))
 
 	# Set the vertical offset
-	particle_data[1:,2] = np.random.normal(loc=0.0, scale=5.0, size=(num_particles-1,))
+	particle_data[1:,2] = np.random.normal(loc=-5.0, scale=5.0, size=(num_particles-1,))
 
 	# Set the angles (yaw and roll)
 	theta_val = 0
 	particle_data[1:,3] = theta_val + np.random.normal(loc=0, scale=3, size=(num_particles-1,))
-	particle_data[1:,4] = np.random.normal(loc=0, scale=0.01, size=(num_particles-1,))
+	particle_data[1:,4] = np.random.normal(loc=0, scale=0.1, size=(num_particles-1,))
 
 	# Set the scales (width, length, height)
 	particle_data[0,5] = np.max(ms.scale_width)
 	particle_data[0,6] = np.max(ms.scale_length)
 	particle_data[0,7] = np.max(ms.scale_height)
-	particle_data[1:,5] = np.random.normal(loc=17, scale=2, size=(num_particles-1,))
+	particle_data[1:,5] = np.random.normal(loc=16, scale=2, size=(num_particles-1,))
 	particle_data[1:,6] = np.random.normal(loc=17, scale=2, size=(num_particles-1,))
 	particle_data[1:,7] = np.abs(np.random.normal(loc=200.0, scale=10, size=(num_particles-1,)))
 
@@ -818,7 +883,7 @@ def test_single_mouse(which_img=731, ms=None, num_particles = 32**2):
 
 	# Add noise to the baseline rotations (just the pitch and yaw for now)
 	# particle_data[1:,8::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
-	particle_data[1:,9+6::3] += np.random.normal(scale=30, size=(num_particles-1, ms.num_bones-2))
+	particle_data[1:,9+9::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones-3))
 	particle_data[1:,10::3] += np.random.normal(scale=30, size=(num_particles-1, ms.num_bones))
 
 
@@ -834,11 +899,11 @@ def test_single_mouse(which_img=731, ms=None, num_particles = 32**2):
 	real_rotations = np.hstack((rot[:,:,1], rot[:,:,2]))
 	rotation_diffs = np.sum((particle_rotations - real_rotations)**2.0, 1)
 
-	# figure();
-	# plot(rotation_diffs, likelihoods, '.k')
-	# ylabel("Likelihood")
-	# xlabel("Rotation angle differences")
-	# title("Rotation angle difference versus likelihood")
+	figure();
+	plot(rotation_diffs, likelihoods, '.k')
+	ylabel("Likelihood")
+	xlabel("Rotation angle differences")
+	title("Rotation angle difference versus likelihood")
 
 	binrange = (0,3000)
 	num_bins = 10
@@ -846,8 +911,7 @@ def test_single_mouse(which_img=731, ms=None, num_particles = 32**2):
 	index = np.digitize(rotation_diffs, bins)
 	means = [np.mean(likelihoods[index==i]) for i in range(num_bins)]
 	errs = [np.std(likelihoods[index==i]) for i in range(num_bins)]
-	# errorbar(bins, means, yerr=errs, linewidth=2)
-	# savefig("/Users/Alex/Desktop/angle vs likelihood.png")
+	errorbar(bins, means, yerr=errs, linewidth=2)
 	# figure(); imshow(ms.likelihood)
 	# figure(); imshow(ms.data); colorbar()
 	# figure(); imshow(ms.diffmap); colorbar()
@@ -855,7 +919,7 @@ def test_single_mouse(which_img=731, ms=None, num_particles = 32**2):
 
 	# Find the five best mice
 	idx = np.argsort(likelihoods)
-	fivebest = np.hstack(posed_mice[idx[-1:]])
+	fivebest = np.hstack(posed_mice[idx[-5:]])
 	# Show first the raw mouse, then my hand-posed mouse, and then the five best poses
 	
 	figure(figsize=(8,3))
@@ -884,7 +948,7 @@ def test_single_mouse(which_img=731, ms=None, num_particles = 32**2):
 
 if __name__ == '__main__':
 	
-	useFramebuffer = True
+	useFramebuffer = False
 	if not useFramebuffer:
 		scenefile = "data/mouse_mesh_low_poly2.npz"
 		scale = 12.0

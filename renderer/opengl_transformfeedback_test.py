@@ -68,12 +68,13 @@ def setup_transformfeedbackbuffer():
     transformBuffer = vbo.VBO(data, 
                             usage="GL_DYNAMIC_DRAW", 
                             target="GL_ARRAY_BUFFER")
-    glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, transformBuffer)
-
+    
     feedback_data = np.zeros((6, 16+4), dtype='float32')
     feedbackBuffer = vbo.VBO(feedback_data, 
                             usage="GL_DYNAMIC_DRAW", 
                             target="GL_ARRAY_BUFFER")
+
+    glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, transformBuffer)
     glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, feedbackBuffer)
 
 
