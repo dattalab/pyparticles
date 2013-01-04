@@ -28,8 +28,10 @@ import time
 lasttime = time.time()
 avgrate = 0
 iframe = 0
-
 color_loc = 0
+
+num_joints = 9
+uploadUniforms = True
 
 def init():
     glClearColor( 0.5,0.5,0.5, 1 );
@@ -61,14 +63,14 @@ def setup_transformfeedbackbuffer():
         [0.6,  0.45, -0.3, 1 ],
         [0.45, 0.47, -0.3, 1 ]
     ], dtype='float32')
-    data = np.tile(data, (1,5))
+    data = np.hstack((data, np.zeros((6,num_joints*3)))).astype('float32')
 
     transformBuffer = vbo.VBO(data, 
                             usage="GL_DYNAMIC_DRAW", 
                             target="GL_ARRAY_BUFFER")
     glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, transformBuffer)
 
-    feedback_data = np.zeros((6, 16+4*2), dtype='float32')
+    feedback_data = np.zeros((6, 16+4), dtype='float32')
     feedbackBuffer = vbo.VBO(feedback_data, 
                             usage="GL_DYNAMIC_DRAW", 
                             target="GL_ARRAY_BUFFER")
@@ -80,21 +82,25 @@ def setup_shaders():
 
     vs = glCreateShader(GL_VERTEX_SHADER)
     vs_source = """
-    attribute mat4 test;
+    % for i in range(num_joints):
+    attribute vec3 rotation${i};
+    % endfor
     varying mat4 posish;
-    varying mat2 a_color[2];
+    varying vec4 a_color;
+    uniform vec3 translations[${num_joints}];
+    uniform mat4 bindingMatrixInverse[${num_joints}];
 
     void main()
-    {
+    {   
+
         gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-        posish[0] = gl_Position.xyzw + test[0].xyzw;
-        // a_color = vec4(1.0, 0.0, 0.0, 1.0);
-        a_color[0][0].xy = vec2(1.0, 0.0);
-        a_color[0][1].xy = vec2(0.0, 1.0);
+        gl_Position = gl_Position*bindingMatrixInverse[0];
+        posish[0] = gl_Position.xyzw;
+        a_color = vec4(1.0, 0.0, 0.0, 1.0);
     }
     """
     makoTemplate = Template(vs_source)
-    makoTemplate.render(num_joints=9)
+    vs_source = makoTemplate.render(num_joints=num_joints)
     glShaderSource(vs, vs_source)
     glCompileShader(vs)
 
@@ -122,7 +128,6 @@ def setup_shaders():
     void main()
     {
         gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-        // some_color = gl_Color.xyzw;
         some_color = incolor.xyzw;
     }
     """, GL_VERTEX_SHADER)
@@ -210,7 +215,7 @@ def display():
 
     glClear(GL_COLOR_BUFFER_BIT)
 
-    glEnable(GL_RASTERIZER_DISCARD);
+    # glEnable(GL_RASTERIZER_DISCARD);
 
     # start transform feedback so that vertices get targetted to 'feedbackBuffer'
     glUseProgram(program)
@@ -220,30 +225,47 @@ def display():
     
     transformBuffer.bind()
 
-    stride = (4+4*4)*4
+    stride = (4+num_joints*3)*4
     glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer( 4, GL_FLOAT, stride, transformBuffer ); # '4' because we have used glVertex4f() above
+    glVertexPointer( 4, GL_FLOAT, stride, transformBuffer )
 
-    glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, query)
+    global uploadUniforms
+    if uploadUniforms:
+        # Uniforms
+        # ========================================
+        # Throw up the translations
+        translations = np.tile(np.arange(num_joints)[:,np.newaxis], (1,3))
+        translation_location = glGetUniformLocation(program, "translations")
+        glUniform3fv(translation_location, num_joints, translations)
+
+        # Put up the inverse binding matrices
+        Bi = np.array([np.eye(4)*5 for i in range(num_joints)]).astype('float32')
+        bindingMatrixInverse_location = glGetUniformLocation(program, "bindingMatrixInverse")
+        glUniformMatrix4fv(bindingMatrixInverse_location, num_joints, True, Bi)
+        # ========================================
+        uploadUniforms = False
+
+
+    # glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, query)
     glBeginTransformFeedbackEXT( GL_TRIANGLES );
     
     glDrawArrays( GL_TRIANGLES, 0, 2*3 );
 
     # end transform feedback
     glEndTransformFeedbackEXT();
-    glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN)
+    # glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN)
 
     glDisableClientState( GL_VERTEX_ARRAY );
-    glDisable(GL_RASTERIZER_DISCARD);
+    # glDisable(GL_RASTERIZER_DISCARD);
 
-    primitives_written = glGetQueryObjectuiv(query, GL_QUERY_RESULT)
-    print "Wrote %d primitives" % primitives_written
+    # primitives_written = glGetQueryObjectuiv(query, GL_QUERY_RESULT)
+    # print "Wrote %d primitives" % primitives_written
 
     glColor3f( 0,1,0 );
     glViewport( 256,0, 256,256 );
 
 
-    stride = (16+4*2)*4
+    stride = (16+4)*4
     glUseProgram(program2)
     feedbackBuffer.bind()
 

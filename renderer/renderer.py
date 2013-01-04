@@ -765,8 +765,8 @@ class MouseScene(object):
 
 def test_single_mouse():
 	path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Mouse No Median Filter, No Dilation')
-	# which_img = 30
-	which_img = 731
+	which_img = 30
+	# which_img = 731
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
