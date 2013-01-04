@@ -24,6 +24,8 @@ A PoseModel class in this file must have the following members:
 
     - default_renderer_pose (instance of RendererPose, can be instance member)
 
+A PoseModel.__init__() method must call the superclass's __init__().
+
 It may be a good idea to have default_renderer_pose set in __init__() so that
 any errors due to filesystem state happen on object creation and not object
 module load.
@@ -38,10 +40,9 @@ module load.
 ##########
 
 # the advantages of using a metaclass are allowing a PoseModel the freedom to
-# override __init__ or __new__, not requiring calling any specific PoseModelBase
-# functions in a PoseModel's __init__ or __new__, keeping pose specs as class
-# members instead of instance members for convenient inspection, and
-# module-load-time checking that the PoseModel has the right class members.
+# override __init__ or __new__, keeping pose specs as class members instead of
+# instance members for convenient inspection, and module-load-time checking that
+# the PoseModel has the right class members.
 
 class PoseModelMetaclass(type):
     def __new__(cls,name,bases,dct):
@@ -59,9 +60,13 @@ class PoseModelMetaclass(type):
 class PoseModelBase(object):
     def expand_poses(self,poses):
         expanded = np.empty((poses.shape[0],self.renderer_pose_tuple_len))
-        expanded[:,self._default_indices] = self.default_renderer_pose[self._default_indices]
+        expanded[:,self._default_indices] = np.array(self.default_renderer_pose)[self._default_indices]
         expanded[:,self._expand_indices] = poses
         return expanded
+
+    def __init__(self):
+        self.default_particle_pose = self.ParticlePose(*[self.default_renderer_pose.__dict__[f]
+            for f in self.ParticlePose._fields])
 
 
 ################
@@ -93,7 +98,9 @@ class PoseModel1(PoseModelBase):
 
         self.default_renderer_pose = self.RendererPose(
                 x=0.,y=0.,theta=0.,
-                **dict(('psi_%s%d'%(v,i),jr[i,j]) for i in range(1,10) for j,v in enumerate(['x','y','z'])))
+                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,10) for j,v in enumerate(['x','y','z'])))
+
+        super(PoseModel3,self).__init__()
 
 
 class PoseModel2(PoseModelBase):
@@ -125,8 +132,9 @@ class PoseModel2(PoseModelBase):
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
                 s_w=18.,s_l=18.,s_h=200.,
-                **dict(('psi_%s%d'%(v,i),jr[i,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
+        super(PoseModel3,self).__init__()
 
 class PoseModel3(PoseModelBase):
     '''
@@ -153,12 +161,12 @@ class PoseModel3(PoseModelBase):
     del i,v
 
     def __init__(self):
-        f = np.load(self.scenefilepath)
-        self.joint_rotations = jr = f['joint_rotations']
-
+        jr = np.load(self.scenefilepath)['joint_rotations']
         self.default_renderer_pose = self.RendererPose(
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
                 s_w=18.,s_l=18.,s_h=200.,
-                **dict(('psi_%s%d'%(v,i),jr[i,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+
+        super(PoseModel3,self).__init__()
 

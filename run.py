@@ -1,7 +1,6 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-from warnings import warn
 import os
 
 from renderer.load_data import load_behavior_data
@@ -37,7 +36,6 @@ def _build_mousescene(conf):
         ms.gl_init()
     return ms
 
-# TODO this could be hidden in experiment_configurations.py
 def _load_data_and_sideinfo(conf):
     datapath = os.path.join(os.path.dirname(__file__),conf.datapath)
     frame_range = conf.frame_range
@@ -68,12 +66,13 @@ def run(conf,num_particles,cutoff,num_particles_firststep):
                         conf.get_initial_particles(num_particles_firststep))
 
     # first step is special
-    particlefilter = pf.step(images[0],sideinfo=xytheta[0])
+    particlefilter.step(images[0],sideinfo=xytheta[0])
     particlefilter.change_numparticles(num_particles)
     conf.first_step_done(particlefilter)
 
     # run the other steps
-    for i in progprint_xrange(1,images.shape[0]):
+    # for i in progprint_xrange(1,images.shape[0]):
+    for i in progprint_xrange(1,1):
         particlefilter.step(images[i],sideinfo=xytheta[i])
 
     return particlefilter
@@ -91,17 +90,22 @@ def meantrack(particles,weights):
         track += np.array(p.track) * w
     return track
 
-def render(conf,stepnum,poses):
-    warn('untested')
+def render(conf,stepnum,particles):
     # might be slow; needs to do a full mousescene render pass
-    _build_mousescene(), _load_data_and_sideinfo()
-    return ms.get_likelihood(np.zeros((msNumRows,msNumCols)),particle_data=conf.pose_model.expand_poses(poses),
-            x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2],
-            return_posed_mice=True)[1]
+    from matplotlib import pyplot as plt
+    _build_mousescene(conf), _load_data_and_sideinfo(conf)
+    testimages = ms.get_likelihood(
+        images[stepnum],
+        particle_data=conf.pose_model.expand_poses(np.array([p.track[stepnum] for p in particles])),
+        x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2],
+        return_posed_mice=True)[1]
+    plt.imshow(np.hstack((images[stepnum],np.hstack(testimages))))
 
 ##########
 #  main  #
 ##########
 if __name__ == '__main__':
     import experiment_configurations
-    run(experiment_configurations.Experiment1(),5000,2500,10000)
+    conf = experiment_configurations.Experiment1()
+    _build_mousescene(conf), _load_data_and_sideinfo(conf)
+    particlefilter = run(conf,4*1024,4*1024,8*1024)
