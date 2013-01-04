@@ -78,11 +78,11 @@ class PoseModel1(PoseModelBase):
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
 
     ParticlePose = namedtuple(
-            'PoseModel1.ParticlePose',
+            'PoseModel1ParticlePose',
             ['x','y','theta'] + ['psi_%s%d'%(v,i) for i in range(1,10) for v in ['y','z']])
 
     RendererPose = namedtuple(
-            'PoseModel1.RendererPose',
+            'PoseModel1RendererPose',
             ['x','y','theta'] + ['psi_%s%d'%(v,i) for i in range(1,10) for v in ['x','y','z']])
 
     del i,v
@@ -106,12 +106,12 @@ class PoseModel2(PoseModelBase):
     scenefilepath = "renderer/data/mouse_mesh_low_poly2.npz"
 
     ParticlePose = namedtuple(
-            'PoseModel2.ParticlePose',
+            'PoseModel2ParticlePose',
             ['x','y','theta_yaw','z','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,7) for v in ['y','z']])
 
     RendererPose = namedtuple(
-            'PoseModel2.ParticlePose',
+            'PoseModel2ParticlePose',
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,7) for v in ['x','y','z']])
 
@@ -139,14 +139,14 @@ class PoseModel3(PoseModelBase):
     scenefilepath = "renderer/data/mouse_mesh_low_poly3.npz"
 
     ParticlePose = namedtuple(
-            'PoseModel3.ParticlePose',
+            'PoseModel3ParticlePose',
             ['x','y','theta_yaw',
              'z','theta_roll','s_w','s_l','s_h',
              'psi_z1','psi_z2',
              'psi_y3','psi_z3','psi_y4','psi_z4','psi_y5','psi_z5'])
 
     RendererPose = namedtuple(
-            'PoseModel3.RendererPose',
+            'PoseModel3RendererPose',
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
 

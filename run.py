@@ -102,7 +102,6 @@ def render(conf,stepnum,poses):
 ##########
 #  main  #
 ##########
-
 if __name__ == '__main__':
-    raise NotImplementedError # TODO
-
+    import experiment_configurations
+    run(experiment_configurations.Experiment1(),5000,2500,10000)
