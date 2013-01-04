@@ -370,7 +370,7 @@ class MouseScene(object):
 		# data = data.ravel().reshape((self.height, self.width, 1))[:,:,0]
 		data = data.ravel().reshape((self.height, self.width))
 		data = self.get_clipZ()*(1-data)
-		this_diff = (np.tile(self.mouse_img, (self.numRows, self.numCols)) - data)**2.0
+		this_diff = np.abs(np.tile(self.mouse_img, (self.numRows, self.numCols)) - data)
 		likelihood = np.zeros((self.numRows, self.numCols), dtype='float32')
 		posed_mice = np.zeros((self.numRows*numCols, self.mouse_height, self.mouse_width), dtype='float32')
 		for i in range(self.numRows):
@@ -538,7 +538,8 @@ class MouseScene(object):
 			// vertex[1] = vertex[1]+offsetz;
 			// vertex[2] = vertex[2]+offsety;
 
-			mat4 yaw = calcLocalRotation(vec3(0.0, theta_yaw, theta_roll), vec3(0.0));
+			// TODO: get the roll working again
+			mat4 yaw = calcLocalRotation(vec3(0.0, theta_yaw, 0.0), vec3(0.0));
 			vertex = vertex * yaw;
 
 			// Transform vertex by modelview and projection matrices
@@ -742,17 +743,17 @@ class MouseScene(object):
 			return all_likelihoods
 
 def test_single_mouse():
-	path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data')
-	# which_img = 731
-	which_img = 30
+	path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Mouse No Median Filter, No Dilation')
+	# which_img = 30
+	which_img = 731
 	from load_data import load_behavior_data
 	image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
 	image = image.T[::-1,:].astype('float32')
 
-	num_particles = 128**2
+	num_particles = 64**2
 	numCols = 32
 	numRows = 32
-	scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly2.npz")
+	scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly3.npz")
 
 	useFramebuffer = False
 	ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
@@ -773,20 +774,20 @@ def test_single_mouse():
 	particle_data[1:,:2] = np.random.normal(loc=0, scale=1, size=(num_particles-1, 2))
 
 	# Set the vertical offset
-	particle_data[1:,2] = np.random.normal(loc=0.0, scale=10.0, size=(num_particles-1,))
+	particle_data[1:,2] = np.random.normal(loc=0.0, scale=3.0, size=(num_particles-1,))
 
 	# Set the angles (yaw and roll)
 	theta_val = 0
 	particle_data[1:,3] = theta_val + np.random.normal(loc=0, scale=3, size=(num_particles-1,))
-	particle_data[1:,4] = np.random.normal(loc=0, scale=3, size=(num_particles-1,))
+	particle_data[1:,4] = np.random.normal(loc=0, scale=0.01, size=(num_particles-1,))
 
 	# Set the scales (width, length, height)
 	particle_data[0,5] = np.max(ms.scale_width)
 	particle_data[0,6] = np.max(ms.scale_length)
 	particle_data[0,7] = np.max(ms.scale_height)
-	particle_data[1:,5] = np.random.normal(loc=18, scale=5, size=(num_particles-1,))
-	particle_data[1:,6] = np.random.normal(loc=18, scale=5, size=(num_particles-1,))
-	particle_data[1:,7] = np.abs(np.random.normal(loc=200.0, scale=50, size=(num_particles-1,)))
+	particle_data[1:,5] = np.random.normal(loc=18, scale=2, size=(num_particles-1,))
+	particle_data[1:,6] = np.random.normal(loc=18, scale=2, size=(num_particles-1,))
+	particle_data[1:,7] = np.abs(np.random.normal(loc=200.0, scale=10, size=(num_particles-1,)))
 
 	# Grab the baseline joint rotations
 	rot = ms.get_joint_rotations().copy()
@@ -797,7 +798,7 @@ def test_single_mouse():
 
 	# Add noise to the baseline rotations (just the pitch and yaw for now)
 	# particle_data[1:,8::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
-	particle_data[1:,9::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
+	particle_data[1:,9+6::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones-2))
 	particle_data[1:,10::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
 
 
