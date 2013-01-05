@@ -105,8 +105,13 @@ def render(conf,stepnum,particles):
     plt.clim(0,300)
 
 def movie(conf,track,outdir):
-    from matplotlib import pyplot as plt
+    import Image
+    from util.general import scoreatpercentile
     _build_mousescene(conf), _load_data_and_sideinfo(conf)
+
+    _d = images.flatten()
+    scale = scoreatpercentile(_d[_d != 0],90,0)[0]
+
     rendered_images = ms.get_likelihood(
             np.zeros(images[0].shape),
             particle_data=conf.pose_model.expand_poses(track),
@@ -114,12 +119,10 @@ def movie(conf,track,outdir):
             y=xytheta[:,1],
             theta=xytheta[:,2],
             return_posed_mice=True)[1]
-    plt.figure()
+
     for i, (truth, rendered) in progprint(enumerate(zip(images,rendered_images)),total=len(rendered_images)):
-        plt.imshow(np.hstack((truth,rendered)))
-        plt.clim(0,300)
-        plt.savefig(os.path.join(outdir,'frame%d.png'%i))
-        plt.clf()
+        Image.fromarray(np.clip(np.hstack((truth,rendered))*(255./scale),0,255.).astype('uint8'))\
+                .save(os.path.join(outdir,'frame%d.png'%(i+conf.frame_range[0])))
 
 ##########
 #  main  #
