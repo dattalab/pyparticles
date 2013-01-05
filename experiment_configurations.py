@@ -122,3 +122,43 @@ class Experiment2(Experiment1):
         self._xytheta_noisechol[:] = self._subsequent_xytheta_noisechol[:]
         self._randomwalk_noisechol[:] = self._subsequent_randomwalk_noisechol[:]
 
+
+class Experiment3(Experiment2):
+    name = 'all in random walk'
+    # frame_range = (5,1000)
+    frame_range = (5,35)
+
+    # TODO theta proposals larger?
+    _initial_randomwalk_noisechol = np.diag((1.,1.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
+    _subsequent_randomwalk_noisechol = np.diag((3.,3.,3.,2.,0.01,0.2,0.2,1.0,) + (5.,)*(2+2*3))
+
+    def __init__(self):
+        self.pose_model = pose_models.PoseModel4()
+
+        from renderer.load_data import load_behavior_data
+        x_start,y_start = load_behavior_data(self.datapath,self.frame_range[0]+1,'centroid')[-1]
+        theta_start = load_behavior_data(self.datapath,self.frame_range[0]+1,'angle')[-1]
+        self.pose_model.default_renderer_pose = \
+                self.pose_model.default_renderer_pose._replace(
+                        theta_yaw=theta_start,
+                        x=x_start,
+                        y=y_start)
+
+        self._randomwalk_noisechol = self._initial_randomwalk_noisechol.copy()
+
+    def get_initial_particles(self,num_particles_firststep):
+        return [pf.AR(
+                    numlags=1,
+                    previous_outputs=(self.pose_model.default_particle_pose,),
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda:pd.FixedNoise(self._randomwalk_noisechol))
+                ) for itr in range(num_particles_firststep)]
+
+    def get_log_likelihood(self,ms,xytheta):
+        def log_likelihood(stepnum,im,poses):
+            return ms.get_likelihood(im,particle_data=self.pose_model.expand_poses(poses),
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/500.
+        return log_likelihood
+
+    def first_step_done(self,particlefilter):
+        self._randomwalk_noisechol[:] = self._subsequent_randomwalk_noisechol[:]
+
