@@ -1,5 +1,4 @@
-
-m __future__ import division
+from __future__ import division
 
 import numpy as np
 
@@ -746,7 +745,8 @@ class MouseScene(object):
 def test_single_mouse():
     path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Mouse No Median Filter, No Dilation')
     # which_img = 30
-    which_img = 731
+    # which_img = 731
+    which_img = 5
     from load_data import load_behavior_data
     image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
     image = image.T[::-1,:].astype('float32')
@@ -842,6 +842,7 @@ def test_single_mouse():
     figure()
     title("Five best (best, far right)")
     imshow(np.hstack((ms.mouse_img, posed_mice[0], fivebest)))
+    plt.clim(0,300)
     vlines(ms.mouse_width, 0, ms.mouse_height, linewidth=3, color='w')
     text(ms.mouse_width/2.0, ms.mouse_width*0.9,'Real Mouse',
          horizontalalignment='center',

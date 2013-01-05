@@ -32,7 +32,9 @@ def _build_mousescene(conf):
     global ms
     if ms is None:
         ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
-                numCols=msNumCols, numRows=msNumRows, useFramebuffer=True,showTiming=False)
+                        scale_width = 18.0, scale_height = 200.0,
+                        scale_length = 18.0, \
+                        numCols=msNumCols, numRows=msNumRows, useFramebuffer=False,showTiming=False)
         ms.gl_init()
     return ms
 
@@ -42,11 +44,11 @@ def _load_data_and_sideinfo(conf):
 
     global xytheta, images
     if xytheta is None or images is None:
-        xy = load_behavior_data(datapath,sum(frame_range),'centroid')[frame_range[0]:]
-        theta = load_behavior_data(datapath,sum(frame_range),'angle')[frame_range[0]:]
+        xy = load_behavior_data(datapath,frame_range[1]+1,'centroid')[frame_range[0]:]
+        theta = load_behavior_data(datapath,frame_range[1]+1,'angle')[frame_range[0]:]
         xytheta = np.concatenate((xy,theta[:,na]),axis=1)
-        images = load_behavior_data(datapath,sum(frame_range),'images').astype('float32')[frame_range[0]:]
-        images = np.array([image.T[::-1,:].astype('float32') for image in images])/354.0
+        images = load_behavior_data(datapath,frame_range[1]+1,'images').astype('float32')[frame_range[0]:]
+        images = np.array([image.T[::-1,:].astype('float32') for image in images])
     return xytheta, images
 
 #############
@@ -71,8 +73,7 @@ def run(conf,num_particles,cutoff,num_particles_firststep):
     conf.first_step_done(particlefilter)
 
     # run the other steps
-    # for i in progprint_xrange(1,images.shape[0]):
-    for i in progprint_xrange(1,1):
+    for i in progprint_xrange(1,images.shape[0]):
         particlefilter.step(images[i],sideinfo=xytheta[i])
 
     return particlefilter
@@ -100,6 +101,7 @@ def render(conf,stepnum,particles):
         x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2],
         return_posed_mice=True)[1]
     plt.imshow(np.hstack((images[stepnum],np.hstack(testimages))))
+    plt.clim(0,300)
 
 ##########
 #  main  #
@@ -108,4 +110,4 @@ if __name__ == '__main__':
     import experiment_configurations
     conf = experiment_configurations.Experiment1()
     _build_mousescene(conf), _load_data_and_sideinfo(conf)
-    particlefilter = run(conf,4*1024,4*1024,8*1024)
+    particlefilter = run(conf,10*1024,10*1024,20*1024)

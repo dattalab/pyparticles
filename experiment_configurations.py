@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+import os
 
 import pose_models
 
@@ -25,13 +26,14 @@ An Experiment object in this file must have the following members:
 '''
 
 class Experiment1(object):
-    datapath = "Test Data"
-    frame_range = (5,180)
+    datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+    frame_range = (701,750)
 
     # chosen from lines 774 and 781 of
     # https://github.com/mattjj/hsmm-particlefilters/blob/ab175f229e219f5117fde5ce76921e0014419180/renderer/renderer.py
     # x, y, theta_yaw
-    _initial_xytheta_noisechol = np.diag((1.,1.,3.))
+    # TODO TODO take out theta from sideinfo? only use on first frame
+    _initial_xytheta_noisechol = np.diag((1.,1.,6.))
 
     # chosen from lines 777, 788-790, and 801-802 of
     # https://github.com/mattjj/hsmm-particlefilters/blob/ab175f229e219f5117fde5ce76921e0014419180/renderer/renderer.py
@@ -39,7 +41,7 @@ class Experiment1(object):
     _initial_randomwalk_noisechol = np.diag((3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
 
     _subsequent_xytheta_noisechol = _initial_xytheta_noisechol
-    _subsequent_randomwalk_noisechol = _initial_randomwalk_noisechol / 2.5 # TODO guessed
+    _subsequent_randomwalk_noisechol = np.diag((2.,0.01,0.2,0.2,1.0,) + (5.,)*(2+2*3))
 
     def __init__(self):
         self.pose_model = pose_models.PoseModel3()
@@ -68,11 +70,8 @@ class Experiment1(object):
 
     def get_log_likelihood(self,ms,xytheta):
         def log_likelihood(stepnum,im,poses):
-            print xytheta[stepnum]
-            print self.pose_model.expand_poses(poses)[:5]
-            print ''
             return ms.get_likelihood(im,particle_data=self.pose_model.expand_poses(poses),
-                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/500.
         return log_likelihood
 
     def first_step_done(self,particlefilter):
