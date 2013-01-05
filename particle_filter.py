@@ -5,7 +5,7 @@ import abc
 
 from util.general import ibincount
 
-DEBUG = True
+DEBUG = False
 
 class ParticleFilter(object):
     def __init__(self,ndim,cutoff,log_likelihood_fn,initial_particles):
@@ -40,8 +40,11 @@ class ParticleFilter(object):
         self.weights_norm = np.exp(self.log_weights - np.logaddexp.reduce(self.log_weights))
         self.weights_norm /= self.weights_norm.sum()
         Neff = 1./np.sum(self.weights_norm**2)
+        self.Neff_history.append((self.numsteps,Neff))
+
         if DEBUG:
             print Neff
+
         return Neff
 
     def _resample(self,num=None):
@@ -56,9 +59,6 @@ class ParticleFilter(object):
 
         if DEBUG:
             print num
-
-        self.Neff_history.append((self.numsteps,num))
-
 
 ######################
 #  Particle objects  #

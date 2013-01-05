@@ -714,18 +714,20 @@ class MouseScene(object):
             this_particle_data[:sz] = particle_data[start:end]
 
             # Set the position and angle offsets
-            self.offset_x = this_particle_data[:,0] - x
-            self.offset_y = this_particle_data[:,1] - y
-            self.offset_z = this_particle_data[:,2]
-            self.offset_theta_yaw = this_particle_data[:,3] - theta
-            self.offset_theta_roll = this_particle_data[:,4]
-            self.scale_width = this_particle_data[:,5]
-            self.scale_length = this_particle_data[:,6]
-            self.scale_height = this_particle_data[:,7]
+            self.offset_x[:sz] = this_particle_data[:sz,0] - x
+            self.offset_y[:sz] = this_particle_data[:sz,1] - y
+            self.offset_z[:sz] = this_particle_data[:sz,2]
+            self.offset_theta_yaw[:sz] = this_particle_data[:sz,3] - theta
+            self.offset_theta_roll[:sz] = this_particle_data[:sz,4]
+            self.scale_width[:sz] = this_particle_data[:sz,5]
+            self.scale_length[:sz] = this_particle_data[:sz,6]
+            self.scale_height[:sz] = this_particle_data[:sz,7]
 
 
             # Set the joint rotations
-            rotations = this_particle_data[:,8:]
+            rotations = np.empty((self.num_mice,this_particle_data[:,8:].shape[1]))
+
+            rotations[:sz] = this_particle_data[:sz,8:]
             rotations = np.reshape(rotations, (self.num_mice, -1, 3))
             self.rotations = rotations
 

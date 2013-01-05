@@ -7,7 +7,7 @@ from renderer.load_data import load_behavior_data
 from renderer.renderer import MouseScene
 
 import particle_filter as pf
-from util.text import progprint_xrange
+from util.text import progprint_xrange, progprint
 
 ############################
 #  computation parameters  #
@@ -38,6 +38,7 @@ def _build_mousescene(conf):
         ms.gl_init()
     return ms
 
+# TODO this should be in experiments
 def _load_data_and_sideinfo(conf):
     datapath = os.path.join(os.path.dirname(__file__),conf.datapath)
     frame_range = conf.frame_range
@@ -73,7 +74,7 @@ def run(conf,num_particles,cutoff,num_particles_firststep):
     conf.first_step_done(particlefilter)
 
     # run the other steps
-    for i in progprint_xrange(1,images.shape[0]):
+    for i in progprint_xrange(1,images.shape[0],perline=10):
         particlefilter.step(images[i],sideinfo=xytheta[i])
 
     return particlefilter
@@ -103,11 +104,28 @@ def render(conf,stepnum,particles):
     plt.imshow(np.hstack((images[stepnum],np.hstack(testimages))))
     plt.clim(0,300)
 
+def movie(conf,track,outdir):
+    from matplotlib import pyplot as plt
+    _build_mousescene(conf), _load_data_and_sideinfo(conf)
+    rendered_images = ms.get_likelihood(
+            np.zeros(images[0].shape),
+            particle_data=conf.pose_model.expand_poses(track),
+            x=xytheta[:,0],
+            y=xytheta[:,1],
+            theta=xytheta[:,2],
+            return_posed_mice=True)[1]
+    plt.figure()
+    for i, (truth, rendered) in progprint(enumerate(zip(images,rendered_images)),total=len(rendered_images)):
+        plt.imshow(np.hstack((truth,rendered)))
+        plt.clim(0,300)
+        plt.savefig(os.path.join(outdir,'frame%d.png'%i))
+        plt.clf()
+
 ##########
 #  main  #
 ##########
 if __name__ == '__main__':
     import experiment_configurations
-    conf = experiment_configurations.Experiment1()
+    conf = experiment_configurations.Experiment2()
     _build_mousescene(conf), _load_data_and_sideinfo(conf)
-    particlefilter = run(conf,10*1024,10*1024,20*1024)
+    particlefilter = run(conf,10*1024,10*1024,30*1024)
