@@ -92,6 +92,9 @@ class Experiment2(Experiment1):
         self.pose_model.default_renderer_pose = \
                 self.pose_model.default_renderer_pose._replace(theta_yaw=
                         load_behavior_data(self.datapath,self.frame_range[1]+1,'angle')[self.frame_range[0]])
+        self.pose_model.default_particle_pose = \
+                self.pose_model.default_particle_pose._replace(theta_yaw=
+                        load_behavior_data(self.datapath,self.frame_range[1]+1,'angle')[self.frame_range[0]])
 
         self._xytheta_noisechol = self._initial_xytheta_noisechol.copy()
         self._randomwalk_noisechol = self._initial_randomwalk_noisechol.copy()
@@ -123,13 +126,14 @@ class Experiment2(Experiment1):
         self._randomwalk_noisechol[:] = self._subsequent_randomwalk_noisechol[:]
 
 
-class Experiment3(Experiment2):
+class Experiment3(object):
     name = 'all in random walk'
     # frame_range = (5,1000)
-    frame_range = (5,35)
+    datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+    frame_range = (5,10)
 
     # TODO theta proposals larger?
-    _initial_randomwalk_noisechol = np.diag((1.,1.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
+    _initial_randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
     _subsequent_randomwalk_noisechol = np.diag((3.,3.,3.,2.,0.01,0.2,0.2,1.0,) + (5.,)*(2+2*3))
 
     def __init__(self):
@@ -140,6 +144,11 @@ class Experiment3(Experiment2):
         theta_start = load_behavior_data(self.datapath,self.frame_range[0]+1,'angle')[-1]
         self.pose_model.default_renderer_pose = \
                 self.pose_model.default_renderer_pose._replace(
+                        theta_yaw=theta_start,
+                        x=x_start,
+                        y=y_start) # not really necessary
+        self.pose_model.default_particle_pose = \
+                self.pose_model.default_particle_pose._replace(
                         theta_yaw=theta_start,
                         x=x_start,
                         y=y_start)
