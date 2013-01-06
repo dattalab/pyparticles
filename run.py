@@ -69,13 +69,13 @@ def run(conf,num_particles,cutoff,num_particles_firststep):
                         conf.get_initial_particles(num_particles_firststep))
 
     # first step is special
-    particlefilter.step(images[0])#,sideinfo=xytheta[0])
+    particlefilter.step(images[0],sideinfo=xytheta[0])
     particlefilter.change_numparticles(num_particles)
     conf.first_step_done(particlefilter)
 
     # run the other steps
     for i in progprint_xrange(1,images.shape[0],perline=10):
-        particlefilter.step(images[i])#,sideinfo=xytheta[i])
+        particlefilter.step(images[i],sideinfo=xytheta[i])
 
     return particlefilter
 
