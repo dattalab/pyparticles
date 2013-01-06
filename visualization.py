@@ -1,26 +1,27 @@
+from __future__ import division
+import numpy as np
+
 import Image
 import sys
 from os.path import *
-sys.path.append("/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/hsmm-particlefilters/renderer/")
-from load_data import load_behavior_data
+from renderer.load_data import load_behavior_data
 
-num_frames = 1000
+num_frames = 100
 max_vert = 500
-dest_dir = "/Users/Alex/Desktop/Movie/Real Data"
-dest_synth_dir = "/Users/Alex/Desktop/Movie/Synth Data"
+dest_dir = "movie_new"
 
 # Load the real data
-path_to_behavior_data = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data"
-imgs = load_behavior_data(path_to_behavior_data, num_frames, "images")[4:]
-centroids = load_behavior_data(path_to_behavior_data, num_frames, "centroid")[4:]
+path_to_behavior_data = "Test Data"
+imgs = load_behavior_data(path_to_behavior_data, num_frames, "images")[5:]
+centroids = load_behavior_data(path_to_behavior_data, num_frames, "centroid")[5:]
 x,y = centroids[:,0], centroids[:,1]
-theta = load_behavior_data(path_to_behavior_data, num_frames, "angle")[4:]
+theta = load_behavior_data(path_to_behavior_data, num_frames, "angle")[5:]
 
 # Load the synthetic data
-posed_mice = np.load("/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data/first_results/posed_mice.npy")
+posed_mice = np.load("posed_mice.npy")
 for i in range(len(posed_mice)):
 	posed_mice[i] = posed_mice[i][::-1].T
-tracks = np.load("/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/Test Data/first_results/tracks.npy")
+tracks = np.load("tracks.npy")
 x_synth = tracks[0,:,0]
 y_synth = tracks[0,:,1]
 theta_synth = tracks[0,:,2]

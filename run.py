@@ -104,13 +104,13 @@ def render(conf,stepnum,particles):
     plt.imshow(np.hstack((images[stepnum],np.hstack(testimages))))
     plt.clim(0,300)
 
-def movie(conf,track,outdir):
-    import Image
-    from util.general import scoreatpercentile
+def movie(conf,track):#,outdir):
+    # import Image
+    # from util.general import scoreatpercentile
     _build_mousescene(conf), _load_data_and_sideinfo(conf)
 
-    _d = images.flatten()
-    scale = scoreatpercentile(_d[_d != 0],90,0)[0]
+    # _d = images.flatten()
+    # scale = scoreatpercentile(_d[_d != 0],90,0)[0]
 
     rendered_images = ms.get_likelihood(
             np.zeros(images[0].shape),
@@ -120,9 +120,11 @@ def movie(conf,track,outdir):
             theta=xytheta[:,2],
             return_posed_mice=True)[1]
 
-    for i, (truth, rendered) in progprint(enumerate(zip(images,rendered_images)),total=len(rendered_images)):
-        Image.fromarray(np.clip(np.hstack((truth,rendered))*(255./scale),0,255.).astype('uint8'))\
-                .save(os.path.join(outdir,'frame%d.png'%(i+conf.frame_range[0])))
+    np.save('posed_mice.npy',rendered_images)
+
+    # for i, (truth, rendered) in progprint(enumerate(zip(images,rendered_images)),total=len(rendered_images)):
+        # Image.fromarray(np.clip(np.hstack((truth,rendered))*(255./scale),0,255.).astype('uint8'))\
+        #         .save(os.path.join(outdir,'frame%d.png'%(i+conf.frame_range[0])))
 
 ##########
 #  main  #
