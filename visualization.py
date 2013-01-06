@@ -6,7 +6,7 @@ import sys
 from os.path import *
 from renderer.load_data import load_behavior_data
 
-num_frames = 100
+num_frames = 30
 max_vert = 500
 dest_dir = "movie_new"
 

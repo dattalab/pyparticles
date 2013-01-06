@@ -19,6 +19,7 @@ class ParticleFilter(object):
         self.log_weights = np.zeros(len(initial_particles))
         self.weights_norm = np.ones(len(initial_particles))
 
+        self.Nsurvive_history = []
         self.Neff_history = []
         self.numsteps = 0
 
@@ -40,8 +41,8 @@ class ParticleFilter(object):
         self.weights_norm = np.exp(self.log_weights - np.logaddexp.reduce(self.log_weights))
         self.weights_norm /= self.weights_norm.sum()
         Neff = 1./np.sum(self.weights_norm**2)
-        self.Neff_history.append((self.numsteps,Neff))
 
+        self.Neff_history.append((self.numsteps,Neff))
         if DEBUG:
             print Neff
 
@@ -57,8 +58,10 @@ class ParticleFilter(object):
         self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
         self.weights_norm = np.repeat(1./num, num)
 
+        self.Nsurvive_history.append((self.numsteps,len(np.unique(sources))))
         if DEBUG:
-            print num
+            print self.Nsurvive_history[-1][1]
+
 
 ######################
 #  Particle objects  #

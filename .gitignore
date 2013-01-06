@@ -8,3 +8,5 @@ renderer/data/frame*
 *.npy
 /Test Data
 /movie*
+*.npz
+*.gz

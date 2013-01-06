@@ -714,6 +714,10 @@ class MouseScene(object):
             this_particle_data[:sz] = particle_data[start:end]
 
             # Set the position and angle offsets
+            x = x[:sz] if isinstance(x,np.ndarray) else x
+            y = y[:sz] if isinstance(y,np.ndarray) else y
+            theta = theta[:sz] if isinstance(theta,np.ndarray) else theta
+
             self.offset_x[:sz] = this_particle_data[:sz,0] - x
             self.offset_y[:sz] = this_particle_data[:sz,1] - y
             self.offset_z[:sz] = this_particle_data[:sz,2]
