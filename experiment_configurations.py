@@ -100,10 +100,9 @@ class Experiment2(Experiment1):
         self._randomwalk_noisechol = self._initial_randomwalk_noisechol.copy()
 
     def get_initial_particles(self,num_particles_firststep):
-        initial = np.load('alltracks_end_firstrun.npy')
         return [pf.AR(
                     numlags=1,
-                    previous_outputs=(initial_i,),
+                    previous_outputs=(self.pose_model.default_particle_pose,),
                     baseclass=lambda: \
                         pm.Concatenation(
                             components=(
@@ -114,7 +113,7 @@ class Experiment2(Experiment1):
                                 lambda d: {'sideinfo':d['sideinfo'][:2]},
                                 lambda d: {'lagged_outputs': map(lambda x: x[2:],d['lagged_outputs'])})
                             )
-                ) for initial_i in initial]
+                ) for itr in range(num_particles_firststep)]
 
     def get_log_likelihood(self,ms,xytheta):
         def log_likelihood(stepnum,im,poses):
@@ -136,9 +135,10 @@ class ContinuedExperiment2(Experiment2):
         self._randomwalk_noisechol = self._subsequent_randomwalk_noisechol.copy()
 
     def get_initial_particles(self,num_particles_firststep):
+        initial = np.load('alltracks_end_firstrun.npy')
         return [pf.AR(
                     numlags=1,
-                    previous_outputs=(self.pose_model.default_particle_pose,),
+                    previous_outputs=(initial_i,),
                     baseclass=lambda: \
                         pm.Concatenation(
                             components=(
@@ -149,7 +149,7 @@ class ContinuedExperiment2(Experiment2):
                                 lambda d: {'sideinfo':d['sideinfo'][:2]},
                                 lambda d: {'lagged_outputs': map(lambda x: x[2:],d['lagged_outputs'])})
                             )
-                ) for itr in range(num_particles_firststep)]
+                ) for initial_i in initial]
 
     def first_step_done(self,particlefilter):
         pass
