@@ -39,7 +39,7 @@ class TextureTest(object):
     def display(self):
 
         # Bind the framebuffer (we'll draw into that, as opposed to the render buffer)
-        glBindFramebuffer(GL_FRAMEBUFFER, self.outputTexture)
+        # glBindFramebuffer(GL_FRAMEBUFFER, self.outputTexture)
 
         # Get setup to draw
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -78,36 +78,60 @@ class TextureTest(object):
 
         # Clean up after ourselves
         # glUseProgram(0)
-        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        # glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 
+    def create_texture(self, width, height):
+        
+        t = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, t)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL)
+        glTexImage2D(GL_TEXTURE_2D, 0, 
+                1, 
+                width, height, 
+                0, GL_DEPTH_COMPONENT, GL_FLOAT, np.zeros((width, height), dtype='float32'))
+
+        return t
 
     def setup_fbo(self):
         """
         We need to setup the FBO to be bound to a texture, that we can render in, and
         subsequently read from
         """
-        self.frameBuffer = glGenFrameBuffers(1)
+        self.frameBuffer = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
 
         # Setup two textures, which we can render between
         self.textures = []
         for i in range(2):
-            t = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, t)
-            glTexImage2D(GL_TEXTURE_2D, 0, 
-                    GL_DEPTH_COMPONENT, 
-                    self.width, self.height, 
-                    0, GL_DEPTH_COMPONENT, GL_FLOAT, None)
+            self.textures.append(self.create_texture(self.width, self.height))
 
-            self.textures.append(t)
+
         
 
 
+    def gl_init(self):
+        glutInit([])
+        glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA | GLUT_DEPTH)
+        glutInitWindowSize(self.width, self.height)
+        glutCreateWindow('Texture Rendering Test')
+
+        glutKeyboardFunc(self.on_keypress)
+        glutMotionFunc(self.on_motion)
+        glutDisplayFunc(self.display)
+
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_NORMALIZE)
+        glEnable(GL_TEXTURE_RECTANGLE)
+
+        # self.setup_fbo()
 
 
 
+if __name__ == "__main__":
+    t = TextureTest(300, 300)
+    t.gl_init()
 
-
-
-
+    glutMainLoop()
