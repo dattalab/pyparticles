@@ -249,7 +249,6 @@ class MouseScene(object):
         ymin = -self.mouse_height/2.0
         ymax = self.mouse_height*(numRows-1) - ymin
         znear = self.get_clipZ()
-        print znear
         zfar = 0.0
 
         glOrtho(xmin, xmax, ymin, ymax, znear, zfar)
@@ -287,7 +286,6 @@ class MouseScene(object):
         glVertex3f(ymin, xmax, -0.1)
         glVertex3f(ymax, xmax, -0.1)
         glVertex3f(ymax, xmin, -0.1)
-
         glEnd()
         
         # Texture stuff!
@@ -582,13 +580,14 @@ class MouseScene(object):
         
         fragmentShader = shaders.compileShader("""
         #version 120
+        #extension GL_ARB_texture_rectangle : enable 
+        #extension GL_ARB_draw_buffers : enable 
         varying vec4 vertex_color;
         uniform sampler2D mouse_tex;
         uniform vec2 mouse_img_size;
         void main() {
             gl_FragColor = vertex_color;
             float z = 1 - gl_FragCoord.z;
-            gl_FragColor = vec4(z, z, z, 1.0);
 
             vec2 position = gl_FragCoord.xy / mouse_img_size.xy;
             vec4 texvec = texture2D(mouse_tex, position);
@@ -856,10 +855,6 @@ def test_single_mouse():
     means = [np.mean(likelihoods[index==i]) for i in range(num_bins)]
     errs = [np.std(likelihoods[index==i]) for i in range(num_bins)]
     errorbar(bins, means, yerr=errs, linewidth=2)
-    # savefig("/Users/Alex/Desktop/angle vs likelihood.png")
-    # figure(); imshow(ms.likelihood)
-    # figure(); imshow(ms.data); colorbar()
-    # figure(); imshow(ms.diffmap); colorbar()
 
 
     # Find the five best mice
@@ -886,7 +881,7 @@ def test_single_mouse():
 
 if __name__ == '__main__':
     
-    useFramebuffer = False
+    useFramebuffer = True
     if not useFramebuffer:
         scenefile = "data/mouse_mesh_low_poly3.npz"
         scale = 12.0
