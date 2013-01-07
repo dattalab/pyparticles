@@ -59,8 +59,6 @@ class TextureTest(object):
         # Bind the framebuffer (we'll draw into that, as opposed to the render buffer)
         # glBindFramebuffer(GL_FRAMEBUFFER, self.outputTexture)
 
-        print glGetIntegerv( GL_MAX_TEXTURE_SIZE )
-
         # Get setup to draw
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glMatrixMode(GL_PROJECTION)
@@ -109,7 +107,7 @@ class TextureTest(object):
         self.data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
 
         # Clean up after ourselves
-        glUseProgram(0)
+        # glUseProgram(0)
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 
@@ -156,16 +154,11 @@ class TextureTest(object):
         glBindRenderbuffer(GL_RENDERBUFFER, 0)
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
-
-
     def setup_textures(self):
         # Setup two textures, which we can render between
         self.textures = []
         for i in range(2):
             self.textures.append(self.create_texture(self.width, self.height))
-
-
-        
 
 
     def gl_init(self):
