@@ -49,23 +49,6 @@ def smart():
 
     return interactive(2500,500,particle_factory,plotfunc)
 
-def dumb_randomwalk_learnednoise():
-    raise NotImplementedError
-    particle_factory = lambda: \
-            pm.AR(
-                    numlags=1,
-                    initial_obs=[np.zeros(2)],
-                    baseclass=lambda: \
-                        pm.RandomWalk(noiseclass=lambda: pd.InverseWishartNoise(10,10*30*np.eye(2)))
-                    )
-
-    def plotfunc(particles,weights):
-        plottopk(particles,weights,5)
-        plotmeanpath(particles,weights)
-
-    return interactive(5000,2500,particle_factory,plotfunc)
-
-
 def dumb_momentum_fixednoise():
     raise NotImplementedError
     propmatrix = np.hstack((2*np.eye(2),-1*np.eye(2)))
@@ -116,6 +99,23 @@ def dumb_randomwalk_fixednoise():
                     previous_outputs=[np.zeros(2)],
                     baseclass=lambda: \
                         pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol=noisechol))
+                    ) for itr in range(10000)]
+
+    def plotfunc(particles,weights):
+        plottopk(particles,weights,5)
+        plotmeanpath(particles,weights)
+
+    return interactive(initial_particles,2500,plotfunc)
+
+def dumb_randomwalk_learnednoise():
+    num_pseudoobs = 25
+    noisecov = 30**2*np.eye(2) * num_pseudoobs
+    initial_particles = [
+            pf.AR(
+                    numlags=1,
+                    previous_outputs=[np.zeros(2)],
+                    baseclass=lambda: \
+                        pm.RandomWalk(noiseclass=lambda: pd.InverseWishartNoise(num_pseudoobs,noisecov))
                     ) for itr in range(10000)]
 
     def plotfunc(particles,weights):

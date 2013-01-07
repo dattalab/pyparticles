@@ -10,16 +10,16 @@ from renderer.load_data import load_behavior_data
 
 # TODO add an angle plotting function
 
-num_frames = 1+400+50
+num_frames = 5+70
 max_vert = 500
 dest_dir = "/Users/mattjj/Desktop/movie_new"
 
 # Load the real data
 path_to_behavior_data = "Test Data"
-imgs = load_behavior_data(path_to_behavior_data, num_frames, "images")[400:]
-centroids = load_behavior_data(path_to_behavior_data, num_frames, "centroid")[400:]
+imgs = load_behavior_data(path_to_behavior_data, num_frames+1, "images")[5:]
+centroids = load_behavior_data(path_to_behavior_data, num_frames+1, "centroid")[5:]
 x,y = centroids[:,0], centroids[:,1]
-theta = load_behavior_data(path_to_behavior_data, num_frames, "angle")[400:]
+theta = load_behavior_data(path_to_behavior_data, num_frames+1, "angle")[5:]
 
 # Load the synthetic data
 posed_mice = np.load("posed_mice.npy")
@@ -43,7 +43,7 @@ def embed_image(img, x, y, theta, large_img_size=(240,320)):
 
 
 # Make a movie of the real stuff
-for i in range(num_frames-400-1):
+for i in range(num_frames-5):
 	I_real = embed_image(imgs[i], x[i], y[i], theta[i], (240,320))
 	I_real = np.clip(I_real, 0, max_vert)
 	I_real = (I_real.astype('float32')/max_vert)*255.0
