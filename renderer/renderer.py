@@ -726,6 +726,7 @@ class MouseScene(object):
         #   - vertical rotation from rest
         #   - horizontal rotation from rest
         # }
+        
         all_likelihoods = np.zeros((num_particles,), dtype='float32')
         if return_posed_mice:
             posed_mice = np.zeros((num_particles, self.mouse_height, self.mouse_width), dtype='float32')

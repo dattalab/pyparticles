@@ -1,6 +1,23 @@
+"""
+We'll be using offscreen rendering extensively here. 
+The concepts involved are framebuffer objects, render-to-texture,
+sampler2D, fragment shaders and ping-pong (reduction) shading.
+
+The approach is this:
+Create a framebuffer object (FBO), bind it. 
+The framebuffer is an abstract "destination" of sorts for OpenGL. 
+It is where pixels will be stored after rendering.
+An FBO needs within itself a concrete destination for the pixels. 
+Here, we'll be attaching a texture to the framebuffer which will
+receive the pixels. 
+Render the mice
+At this point, we go to town reducing the differences.
+"""
+
 from __future__ import division
 
 import numpy as np
+from pylab import *
 
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -12,6 +29,7 @@ from OpenGL.GL.ARB.draw_instanced import *
 from OpenGL.GL.ARB.texture_buffer_object import *
 from OpenGL.GL.framebufferobjects import *
 from OpenGL.GL.ARB.depth_texture import *
+from OpenGL.GL.ARB.shadow import *
 
 # Get a texture up on the screen
 class TextureTest(object):
@@ -41,6 +59,8 @@ class TextureTest(object):
         # Bind the framebuffer (we'll draw into that, as opposed to the render buffer)
         # glBindFramebuffer(GL_FRAMEBUFFER, self.outputTexture)
 
+        print glGetIntegerv( GL_MAX_TEXTURE_SIZE )
+
         # Get setup to draw
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glMatrixMode(GL_PROJECTION)
@@ -48,21 +68,20 @@ class TextureTest(object):
         glOrtho(-1, 1, -1, 1, -1, 1)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
-        
+        glClearColor(0.5, 0.5, 0.5, 1.0)        
+        glDepthFunc(GL_LEQUAL)
+
         # Bind the shader
         # glUseProgram(self.shaderProgram)
 
 
         # Texture stuff!
-        glEnable(GL_TEXTURE_2D)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL)
         glBindTexture(GL_TEXTURE_2D, self.textures[0])
-        glUniform2f(self.mouse_img_size_location, self.mouse_width, self.mouse_height)
+        glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
 
         # Just draw a square
         glBegin(GL_QUADS)
+        # One big quad
         glColor4f(0.0, 1.0, 0.0, 1.0)
         glTexCoord2f(0.0, 0.0)
         glVertex3f(-1, -1, -0.1)
@@ -72,26 +91,46 @@ class TextureTest(object):
         glVertex3f(1, 1, -0.1)
         glTexCoord2f(1.0, 0.0)
         glVertex3f(1, -1, -0.1)
+
+        # A quarter-sized quad
+        glColor4f(1.0, 0.0, 0.0, 1.0)
+        glTexCoord2f(0.0, 0.0)
+        glVertex3f(-1, -1, 0.5)
+        glTexCoord2f(0.0, 1.0)
+        glVertex3f(-1, 0, 0.5)
+        glTexCoord2f(1.0, 1.0)
+        glVertex3f(0, 0, 0.5)
+        glTexCoord2f(1.0, 0.0)
+        glVertex3f(0, -1, 0.5)
+
         glEnd()
 
         # Read off the pixels
+        self.data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
 
         # Clean up after ourselves
-        # glUseProgram(0)
-        # glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        glUseProgram(0)
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 
     def create_texture(self, width, height):
         
         t = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, t)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL)
-        glTexImage2D(GL_TEXTURE_2D, 0, 
-                1, 
-                width, height, 
-                0, GL_DEPTH_COMPONENT, GL_FLOAT, np.zeros((width, height), dtype='float32'))
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+            width, height, 0,
+            GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, None
+        )
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0)
+
 
         return t
 
@@ -100,9 +139,26 @@ class TextureTest(object):
         We need to setup the FBO to be bound to a texture, that we can render in, and
         subsequently read from
         """
+        self.setup_textures()
         self.frameBuffer = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
 
+        # Attach our first texture to the depth attachment point
+        glBindTexture(GL_TEXTURE_2D, self.textures[0])
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.textures[0], 0)
+
+        # Every FBO has to have a color attachment. We don't persist it
+        # because we won't be using it. We only care about depth.
+        color = glGenRenderbuffers(1)
+        glBindRenderbuffer( GL_RENDERBUFFER, color )
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, self.width, self.height)
+        glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color )
+        glBindRenderbuffer(GL_RENDERBUFFER, 0)
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+
+
+
+    def setup_textures(self):
         # Setup two textures, which we can render between
         self.textures = []
         for i in range(2):
@@ -124,14 +180,15 @@ class TextureTest(object):
 
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_NORMALIZE)
-        glEnable(GL_TEXTURE_RECTANGLE)
+        glEnable(GL_TEXTURE_2D)
 
-        # self.setup_fbo()
+        self.setup_fbo()
 
 
 
 if __name__ == "__main__":
     t = TextureTest(300, 300)
     t.gl_init()
-
-    glutMainLoop()
+    t.display()
+    figure(); imshow(t.data)
+    # glutMainLoop()
