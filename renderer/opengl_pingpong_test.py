@@ -57,7 +57,7 @@ class TextureTest(object):
     def display(self):
 
         # Bind the framebuffer (we'll draw into that, as opposed to the render buffer)
-        # glBindFramebuffer(GL_FRAMEBUFFER, self.outputTexture)
+        glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
 
         # Get setup to draw
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -72,34 +72,31 @@ class TextureTest(object):
         # Bind the shader
         glUseProgram(self.shaderProgram)
 
-
         # Texture stuff!
-        glBindTexture(GL_TEXTURE_2D, self.textures[0])
-        glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
 
         # Just draw a square
         glBegin(GL_QUADS)
         # One big quad
         glColor4f(0.0, 1.0, 0.0, 1.0)
         glTexCoord2f(0.0, 0.0)
-        glVertex3f(-1, -1, -0.1)
+        glVertex3f(-1, -1, -0.5)
         glTexCoord2f(0.0, 1.0)
-        glVertex3f(-1, 1, -0.1)
+        glVertex3f(-1, 1, -0.5)
         glTexCoord2f(1.0, 1.0)
-        glVertex3f(1, 1, -0.1)
+        glVertex3f(1, 1, -0.5)
         glTexCoord2f(1.0, 0.0)
-        glVertex3f(1, -1, -0.1)
+        glVertex3f(1, -1, -0.5)
 
         # A quarter-sized quad
         glColor4f(1.0, 0.0, 0.0, 1.0)
         glTexCoord2f(0.0, 0.0)
-        glVertex3f(-1, -1, 0.5)
+        glVertex3f(-1, -1, -0.1)
         glTexCoord2f(0.0, 1.0)
-        glVertex3f(-1, 0, 0.5)
+        glVertex3f(-1, 0, -0.1)
         glTexCoord2f(1.0, 1.0)
-        glVertex3f(0, 0, 0.5)
+        glVertex3f(0, 0, -0.1)
         glTexCoord2f(1.0, 0.0)
-        glVertex3f(0, -1, 0.5)
+        glVertex3f(0, -1, -0.1)
 
         glEnd()
 
@@ -119,7 +116,7 @@ class TextureTest(object):
         glTexImage2D(
             GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
             width, height, 0,
-            GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, None
+            GL_DEPTH_COMPONENT, GL_FLOAT, None
         )
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
@@ -160,23 +157,34 @@ class TextureTest(object):
         for i in range(2):
             self.textures.append(self.create_texture(self.width, self.height))
 
+        # Fill the second texture with some interesting data
+        y,x = np.mgrid[0:self.height, 0:self.width]
+        some_data = np.sin(np.pi*y/self.height)*np.sin(np.pi*x/self.width)
+        glBindTexture(GL_TEXTURE_2D, self.textures[1])
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+            self.width, self.height, 0,
+            GL_DEPTH_COMPONENT, GL_FLOAT, some_data
+        )
+
+
     def setup_shaders(self):
 
-        print "HEHELHELKFH"
         vShader = shaders.compileShader("""
             #version 120
-            varying vec4 vertex_color;
+            varying vec4 the_color;
             void main() {
                 gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-                vertex_color = gl_Color;
+                the_color = gl_Color;
             }
             """, GL_VERTEX_SHADER)
 
         fShader = shaders.compileShader("""
             #version 120
-            varying vec4 vertex_color;
+            varying vec4 the_color;
             void main() {
-                gl_FragColor = vertex_color;
+                // gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+                gl_FragColor = the_color;
             }
             """, GL_FRAGMENT_SHADER)
 
