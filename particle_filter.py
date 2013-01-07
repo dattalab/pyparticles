@@ -84,10 +84,6 @@ class Particle(object):
     def copy(self):
         pass
 
-    def __getattr__(self,name):
-        # pull up sampler's members for convenience
-        return getattr(self.sampler,name)
-
 
 class BasicParticle(Particle):
     def __init__(self,baseclass):
