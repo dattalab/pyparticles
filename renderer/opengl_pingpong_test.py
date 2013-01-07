@@ -70,7 +70,7 @@ class TextureTest(object):
         glDepthFunc(GL_LEQUAL)
 
         # Bind the shader
-        # glUseProgram(self.shaderProgram)
+        glUseProgram(self.shaderProgram)
 
 
         # Texture stuff!
@@ -107,7 +107,7 @@ class TextureTest(object):
         self.data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
 
         # Clean up after ourselves
-        # glUseProgram(0)
+        glUseProgram(0)
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 
@@ -160,6 +160,27 @@ class TextureTest(object):
         for i in range(2):
             self.textures.append(self.create_texture(self.width, self.height))
 
+    def setup_shaders(self):
+
+        print "HEHELHELKFH"
+        vShader = shaders.compileShader("""
+            #version 120
+            varying vec4 vertex_color;
+            void main() {
+                gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+                vertex_color = gl_Color;
+            }
+            """, GL_VERTEX_SHADER)
+
+        fShader = shaders.compileShader("""
+            #version 120
+            varying vec4 vertex_color;
+            void main() {
+                gl_FragColor = vertex_color;
+            }
+            """, GL_FRAGMENT_SHADER)
+
+        self.shaderProgram = shaders.compileProgram(vShader, fShader)
 
     def gl_init(self):
         glutInit([])
@@ -176,6 +197,7 @@ class TextureTest(object):
         glEnable(GL_TEXTURE_2D)
 
         self.setup_fbo()
+        self.setup_shaders()
 
 
 
