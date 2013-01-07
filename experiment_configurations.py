@@ -154,6 +154,8 @@ class ContinuedExperiment2(Experiment2):
     def first_step_done(self,particlefilter):
         pass
 
+class Experiment2Full(Experiment2):
+    frame_range = (5,2000)
 
 class Experiment3(object):
     name = 'all in random walk'

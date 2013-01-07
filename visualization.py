@@ -6,7 +6,7 @@ import sys
 from os.path import *
 from renderer.load_data import load_behavior_data
 
-num_frames = 30
+num_frames = 2000
 max_vert = 500
 dest_dir = "movie_new"
 
@@ -21,10 +21,10 @@ theta = load_behavior_data(path_to_behavior_data, num_frames, "angle")[5:]
 posed_mice = np.load("posed_mice.npy")
 for i in range(len(posed_mice)):
 	posed_mice[i] = posed_mice[i][::-1].T
-tracks = np.load("tracks.npy")
-x_synth = tracks[0,:,0]
-y_synth = tracks[0,:,1]
-theta_synth = tracks[0,:,2]
+tracks = np.load("fulltrack.npy")
+x_synth = tracks[:,0]
+y_synth = tracks[:,1]
+theta_synth = tracks[:,2]
 
 def embed_image(img, x, y, theta, large_img_size=(240,320)):
 	import scipy.ndimage.interpolation as interp
