@@ -75,15 +75,14 @@ class Experiment1(object):
 
 class Experiment2(Experiment1):
     name = 'theta in random walk'
-    frame_range = (5,1000)
-    # frame_range = (5,35)
+    frame_range = (5,2000)
 
-    _initial_xytheta_noisechol = np.diag((1.,1.))
+    _initial_xytheta_noisechol = np.diag((2.,2.))
     _subsequent_xytheta_noisechol = _initial_xytheta_noisechol
 
     # TODO theta proposals larger?
     _initial_randomwalk_noisechol = np.diag((7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
-    _subsequent_randomwalk_noisechol = np.diag((3.,2.,0.01,0.2,0.2,1.0,) + (5.,)*(2+2*3))
+    _subsequent_randomwalk_noisechol = np.diag((3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
 
     def __init__(self):
         self.pose_model = pose_models.PoseModel4()
@@ -118,7 +117,7 @@ class Experiment2(Experiment1):
     def get_log_likelihood(self,ms,xytheta):
         def log_likelihood(stepnum,im,poses):
             return ms.get_likelihood(im,particle_data=self.pose_model.expand_poses(poses),
-                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/500.
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/1000.
         return log_likelihood
 
     def first_step_done(self,particlefilter):

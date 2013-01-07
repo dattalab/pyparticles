@@ -10,3 +10,4 @@ renderer/data/frame*
 /movie*
 *.npz
 *.gz
+/pf*

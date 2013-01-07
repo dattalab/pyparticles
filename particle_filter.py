@@ -62,6 +62,11 @@ class ParticleFilter(object):
         if DEBUG:
             print self.Nsurvive_history[-1][1]
 
+    def __getstate__(self):
+        result = self.__dict__.copy()
+        del result['log_likelihood_fn']
+        return result
+
 
 ######################
 #  Particle objects  #
@@ -101,6 +106,9 @@ class BasicParticle(Particle):
 
     def __str__(self):
         return '%s(%s)' % (self.__class__.__name__,self.sampler.__str__())
+
+    def __getstate__(self):
+        return {'track':self.track}
 
 
 class AR(BasicParticle):

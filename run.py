@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-import os
+import os, cPickle, shutil
 
 from renderer.load_data import load_behavior_data
 from renderer.renderer import MouseScene
@@ -57,35 +57,6 @@ def _load_data_and_sideinfo(conf):
 #############
 
 def run(conf,num_particles,cutoff,num_particles_firststep):
-    print np.diag(conf._subsequent_randomwalk_noisechol)
-    print num_particles, num_particles_firststep
-    print ''
-
-    # load 3D model object, data, sideinfo
-    ms = _build_mousescene(conf)
-    xytheta, images = _load_data_and_sideinfo(conf)
-
-    # build the particle filter
-    particlefilter = pf.ParticleFilter(
-                        conf.pose_model.particle_pose_tuple_len,
-                        cutoff,
-                        conf.get_log_likelihood(ms,xytheta),
-                        conf.get_initial_particles(num_particles_firststep))
-
-    # first step is special
-    particlefilter.step(images[0],sideinfo=xytheta[0])
-    particlefilter.change_numparticles(num_particles)
-    conf.first_step_done(particlefilter)
-
-    # run the other steps
-    for i in progprint_xrange(1,images.shape[0],perline=10):
-        if i % 250 == 0:
-            try:
-                np.savez('continued_tracks_%d'%i,np.array([p.track for p in particlefilter.particles]))
-            except:
-                pass
-        particlefilter.step(images[i],sideinfo=xytheta[i])
-        print ''
 
     return particlefilter
 
@@ -141,6 +112,38 @@ def movie(conf,track):#,outdir):
 ##########
 if __name__ == '__main__':
     import experiment_configurations
-    conf = experiment_configurations.ContinuedExperiment2()
+    conf = experiment_configurations.Experiment2()
     _build_mousescene(conf), _load_data_and_sideinfo(conf)
-    particlefilter = run(conf,10*1024,10*1024,10*1024)
+
+    num_particles_firststep = 80*1024
+    num_particles = 20*1024
+    cutoff = 20*1024
+
+    print np.diag(conf._subsequent_randomwalk_noisechol)
+    print num_particles, num_particles_firststep
+    print ''
+
+    # load 3D model object, data, sideinfo
+    ms = _build_mousescene(conf)
+    xytheta, images = _load_data_and_sideinfo(conf)
+
+    # build the particle filter
+    particlefilter = pf.ParticleFilter(
+                        conf.pose_model.particle_pose_tuple_len,
+                        cutoff,
+                        conf.get_log_likelihood(ms,xytheta),
+                        conf.get_initial_particles(num_particles_firststep))
+
+    # first step is special
+    particlefilter.step(images[0],sideinfo=xytheta[0])
+    particlefilter.change_numparticles(num_particles)
+    conf.first_step_done(particlefilter)
+
+    # run the other steps
+    for i in progprint_xrange(1,images.shape[0],perline=10):
+        if i % 10 == 0:
+            with open('pf%d'%i,'w') as outfile:
+                cPickle.dump(particlefilter,outfile,protocol=2)
+            shutil.copy('pf%d'%i,'Test Data/pf')
+        particlefilter.step(images[i],sideinfo=xytheta[i])
+        print ''
