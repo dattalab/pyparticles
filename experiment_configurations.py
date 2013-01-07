@@ -160,7 +160,7 @@ class Experiment3(object):
     name = 'all in random walk'
     datapath = os.path.join(os.path.dirname(__file__),"Test Data")
     # frame_range = (5,30)
-    frame_range = (5,2000)
+    frame_range = (400,450)
 
     _initial_randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
     _subsequent_randomwalk_noisechol = np.diag((1.,1.,2.,0.5,0.01,0.1,0.1,0.5,) + (1.5,)*(2+2*3))
