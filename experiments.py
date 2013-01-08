@@ -205,8 +205,8 @@ class RandomWalkWithInjection(Experiment):
         num_particles = 1024*30
         cutoff = 1024*15
 
-        xytheta_dart_noisechol = np.diag((2.,2.)) # TODO theta should be in regen particles
-        angles_dart_noisechol = np.diag((7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
+        xytheta_dart_noisechol = np.diag((2.,2.,7.))
+        other_dart_noisechol = np.diag((3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
 
         randomwalk_noisechol = np.diag((1.5,1.5,3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
 
@@ -215,12 +215,9 @@ class RandomWalkWithInjection(Experiment):
         _build_mousescene(pose_model.scenefilepath)
         images, xytheta = _load_data(datapath,frame_range)
 
-        pose_model.default_renderer_pose = pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2])
-        pose_model.default_particle_pose = pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2])
-
         def log_likelihood(stepnum,im,poses):
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
-                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/500.
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/3000.
 
         # these particles have a chance to teleport back to dart mode, which
         # should be like injection
@@ -238,11 +235,11 @@ class RandomWalkWithInjection(Experiment):
                                 pm.Concatenation(
                                     components=(
                                         pm.SideInfo(noiseclass=lambda: pd.FixedNoise(xytheta_dart_noisechol)),
-                                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(angles_dart_noisechol))
+                                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(other_dart_noisechol))
                                     ),
                                     arggetters=(
-                                        lambda d: {'sideinfo':d['sideinfo'][:2]}, # TODO theta should be in
-                                        lambda d: {'lagged_outputs': [pose_model.default_particle_pose[2:],]}
+                                        lambda d: {'sideinfo':d['sideinfo'][:3]},
+                                        lambda d: {'lagged_outputs': [pose_model.default_particle_pose[3:],]}
                                     )
                                 )
                             ),
