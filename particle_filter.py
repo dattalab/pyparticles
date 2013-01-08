@@ -2,11 +2,11 @@ from __future__ import division
 import numpy as np
 na = np.newaxis
 from collections import deque
-import abc
+import abc, random, warnings
 
 from util.general import ibincount
 
-DEBUG = True
+DEBUG = False
 
 # this is a great reference on techniques:
 # http://www.cs.berkeley.edu/~pabbeel/cs287-fa11/slides/particle-filters++_v2.pdf
@@ -47,18 +47,29 @@ class ParticleFilter(object):
             self._resample(resample_method,num=newnum)
 
     def inject_particles(self,particles_to_inject,particle_kwargs={}):
-        # breaks posterior estimation, but good for tracking!
+        warnings.warn('untested')
+        # breaks posterior estimation, but good for tracking if the proposal
+        # model doesn't have much meaning!
         self.particles_were_injected = True
+
+        if self.numsteps > 0:
+            new_weights_norm = np.empty(len(particles_to_inject))
+            new_log_weights = np.empty(len(particles_to_inject))
+            copy_sources = self._lowvariance_sources(len(particles_to_inject))
+            for i,(p,copy_index) in enumerate(zip(particles_to_inject,copy_sources)):
+                p.track = self.particles[copy_index].track[:-1]
+
+                new_weights_norm[i] = self.weights_norm[i]/2.
+                self.weights_norm[i] /= 2
+
+                new_log_weights[i] = self.log_weights[i] - np.log(2)
+                self.log_weights[i] -= np.log(2)
 
         self.locs = np.concatenate((self.locs,[p.sample_next(**particle_kwargs) for p in particles_to_inject]))
         self.particles += particles_to_inject
 
-        newnum = len(self.particles)
-        self.weights_norm = np.concatenate((
-                                self.weights_norm*len(self.weights_norm)/newnum,
-                                np.repeat(1./newnum,len(particles_to_inject))
-                            ))
-        self.log_weights = np.log(np.repeat(1./newnum,newnum))
+        self.weights_norm = np.concatenate((self.weights_norm,new_weights_norm))
+        self.log_weights = np.concatenate((self.log_weights,new_log_weights))
 
     @property
     def _Neff(self):

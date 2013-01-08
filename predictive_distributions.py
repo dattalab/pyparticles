@@ -73,6 +73,7 @@ class FixedNoise(PredictiveDistribution):
     def __repr__(self):
         return str(self)
 
+
 class InverseWishartNoise(PredictiveDistribution):
     def __init__(self,n_0,S_0):
         self.S_0 = S_0
