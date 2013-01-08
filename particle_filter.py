@@ -6,7 +6,7 @@ import abc
 
 from util.general import ibincount
 
-DEBUG = False
+DEBUG = True
 
 class ParticleFilter(object):
     def __init__(self,ndim,cutoff,log_likelihood_fn,initial_particles):
