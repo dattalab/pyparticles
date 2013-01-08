@@ -711,6 +711,7 @@ class MouseScene(object):
             # NOTE: end-start may be longer than particle_data[start:end]
             # this works because of numpy indexing, e.g. randn(10)[8:15]
             sz = particle_data[start:end].shape[0]
+            this_particle_data[:] = 0
             this_particle_data[:sz] = particle_data[start:end]
 
             # Set the position and angle offsets

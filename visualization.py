@@ -6,25 +6,29 @@ import sys
 from os.path import *
 from renderer.load_data import load_behavior_data
 
-num_frames = 30
+# TODO make this nicer
+
+# TODO add an angle plotting function
+
+num_frames = 5+70
 max_vert = 500
-dest_dir = "movie_new"
+dest_dir = "/Users/mattjj/Desktop/movie_new"
 
 # Load the real data
 path_to_behavior_data = "Test Data"
-imgs = load_behavior_data(path_to_behavior_data, num_frames, "images")[5:]
-centroids = load_behavior_data(path_to_behavior_data, num_frames, "centroid")[5:]
+imgs = load_behavior_data(path_to_behavior_data, num_frames+1, "images")[5:]
+centroids = load_behavior_data(path_to_behavior_data, num_frames+1, "centroid")[5:]
 x,y = centroids[:,0], centroids[:,1]
-theta = load_behavior_data(path_to_behavior_data, num_frames, "angle")[5:]
+theta = load_behavior_data(path_to_behavior_data, num_frames+1, "angle")[5:]
 
 # Load the synthetic data
 posed_mice = np.load("posed_mice.npy")
 for i in range(len(posed_mice)):
 	posed_mice[i] = posed_mice[i][::-1].T
-tracks = np.load("tracks.npy")
-x_synth = tracks[0,:,0]
-y_synth = tracks[0,:,1]
-theta_synth = tracks[0,:,2]
+tracks = np.load("pftrack.npy")
+x_synth = tracks[:,0]
+y_synth = tracks[:,1]
+theta_synth = tracks[:,2]
 
 def embed_image(img, x, y, theta, large_img_size=(240,320)):
 	import scipy.ndimage.interpolation as interp
@@ -53,3 +57,26 @@ for i in range(num_frames-5):
 	Image.fromarray(I.astype('uint8')).save(join(dest_dir, "%03d.png" % i))
 
 
+
+# TODO
+def movie(conf,track):#,outdir):
+    # import Image
+    # from util.general import scoreatpercentile
+    _build_mousescene(conf), _load_data_and_sideinfo(conf)
+
+    # _d = images.flatten()
+    # scale = scoreatpercentile(_d[_d != 0],90,0)[0]
+
+    rendered_images = ms.get_likelihood(
+            np.zeros(images[0].shape),
+            particle_data=conf.pose_model.expand_poses(track),
+            x=xytheta[:,0],
+            y=xytheta[:,1],
+            theta=xytheta[:,2],
+            return_posed_mice=True)[1]
+
+    np.save('posed_mice.npy',rendered_images)
+
+    # for i, (truth, rendered) in progprint(enumerate(zip(images,rendered_images)),total=len(rendered_images)):
+        # Image.fromarray(np.clip(np.hstack((truth,rendered))*(255./scale),0,255.).astype('uint8'))\
+        #         .save(os.path.join(outdir,'frame%d.png'%(i+conf.frame_range[0])))
