@@ -214,12 +214,6 @@ class RandomWalkWithInjection(Experiment):
         _build_mousescene(pose_model.scenefilepath)
         images, xytheta = _load_data(datapath,frame_range)
 
-        # set defaults to initial xytheta (not really necessary anymore)
-        pose_model.default_renderer_pose = \
-            pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
-        pose_model.default_particle_pose = \
-            pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
-
         def log_likelihood(stepnum,im,poses):
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
                 x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/500.
@@ -232,7 +226,7 @@ class RandomWalkWithInjection(Experiment):
                 log_likelihood,
                 [particle_filter.AR(
                     numlags=1,
-                    previous_outputs=(pose_model.default_particle_pose,),
+                    previous_outputs=(None,),
                     baseclass=lambda: \
                         pm.Mixture(
                             components=(
@@ -262,7 +256,8 @@ class RandomWalkWithInjection(Experiment):
         # re-calibrate after first step
         pf.change_numparticles(num_particles)
         for p in pf.particles:
-            p.counts = np.array([5.,0.])*25 # TODO change
+            assert hasattr(p.sampler,'counts')
+            p.sampler.counts = np.array([5.,0.])*25 # TODO change
 
         for i in progprint_xrange(1,images.shape[0],perline=10):
             # save
