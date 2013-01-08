@@ -268,7 +268,7 @@ class RandomWalkWithInjection(Experiment):
             pf.step(images[i],particle_kwargs={'sideinfo':xytheta[i]})
 
             # print
-            print len(np.unique([p.track[max(1,pf.numsteps-10)][0] for p in pf.particles]))
+            print len(np.unique([p.track[1][0] for p in pf.particles]))
             print ''
 
 
