@@ -124,6 +124,7 @@ class TextureTest(object):
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
         glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE)
         glBindTexture(GL_TEXTURE_2D, 0)
 
 
@@ -159,12 +160,13 @@ class TextureTest(object):
 
         # Fill the second texture with some interesting data
         y,x = np.mgrid[0:self.height, 0:self.width]
-        some_data = np.sin(np.pi*y/self.height)*np.sin(np.pi*x/self.width)
+        self.some_data = 0.5*(1.+np.sin(2.*np.pi*y/self.height))* np.sin(np.pi*x/self.width)
         glBindTexture(GL_TEXTURE_2D, self.textures[1])
+        glPixelStoref(GL_UNPACK_ALIGNMENT, 1)
         glTexImage2D(
             GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
             self.width, self.height, 0,
-            GL_DEPTH_COMPONENT, GL_FLOAT, some_data
+            GL_DEPTH_COMPONENT, GL_FLOAT, self.some_data
         )
 
 
@@ -182,13 +184,30 @@ class TextureTest(object):
         fShader = shaders.compileShader("""
             #version 120
             varying vec4 the_color;
+            uniform sampler2D data_texture;
+            uniform vec2 image_size;
             void main() {
-                // gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-                gl_FragColor = the_color;
+                gl_FragDepth = gl_FragCoord.x/image_size[0];
+                vec4 a = texture2D(data_texture, vec2(gl_FragCoord.x/image_size.x, 1.0 - gl_FragCoord.y/image_size.y));
+                vec4 b = texture2D(data_texture, vec2(gl_FragCoord.x/image_size.x, gl_FragCoord.y/image_size.y));
+                gl_FragDepth = (a.r + b.r)/2.0;
             }
             """, GL_FRAGMENT_SHADER)
 
         self.shaderProgram = shaders.compileProgram(vShader, fShader)
+
+        glUseProgram(self.shaderProgram)
+        image_size_loc = glGetUniformLocation(self.shaderProgram, "image_size")
+        glUniform2f(image_size_loc, self.width, self.height)
+
+        data_texture_loc = glGetUniformLocation(self.shaderProgram, "data_texture")
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, self.textures[1])
+        glUniform1i(data_texture_loc, 0)
+
+        glUseProgram(0)
+
+
 
     def gl_init(self):
         glutInit([])
