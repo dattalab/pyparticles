@@ -205,14 +205,18 @@ class RandomWalkWithInjection(Experiment):
         num_particles = 1024*30
         cutoff = 1024*15
 
-        xytheta_dart_noisechol = np.diag((2.,2.))
+        xytheta_dart_noisechol = np.diag((2.,2.)) # TODO theta should be in regen particles
         angles_dart_noisechol = np.diag((7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
+
         randomwalk_noisechol = np.diag((1.5,1.5,3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
 
         pose_model = pose_models.PoseModel3()
 
         _build_mousescene(pose_model.scenefilepath)
         images, xytheta = _load_data(datapath,frame_range)
+
+        pose_model.default_renderer_pose = pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2])
+        pose_model.default_particle_pose = pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2])
 
         def log_likelihood(stepnum,im,poses):
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
@@ -237,7 +241,7 @@ class RandomWalkWithInjection(Experiment):
                                         pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(angles_dart_noisechol))
                                     ),
                                     arggetters=(
-                                        lambda d: {'sideinfo':d['sideinfo'][:2]},
+                                        lambda d: {'sideinfo':d['sideinfo'][:2]}, # TODO theta should be in
                                         lambda d: {'lagged_outputs': [pose_model.default_particle_pose[2:],]}
                                     )
                                 )
