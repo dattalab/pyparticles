@@ -158,7 +158,7 @@ class RandomWalkFixedNoise(Experiment):
         cutoff = 1024*10
 
         randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
-        subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,0.5,0.01,0.1,0.1,0.5,) + (3.,)*(2+2*3))
+        subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
 
         pose_model = pose_models.PoseModel3()
 
@@ -172,7 +172,7 @@ class RandomWalkFixedNoise(Experiment):
 
         def log_likelihood(stepnum,im,poses):
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
-                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/3000.
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/500.
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
