@@ -184,9 +184,9 @@ class RandomWalkLearnedNoise(Experiment):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
         frame_range = (5,1000)
 
-        num_particles_firststep = 1024*80
+        num_particles_firststep = 1024*50
         num_particles = 1024*50
-        cutoff = 1024*5
+        cutoff = 1024*25
 
         initial_n_0 = 1000
         subsequent_n_0 = 16+20
