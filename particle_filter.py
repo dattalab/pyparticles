@@ -3,6 +3,7 @@ import numpy as np
 na = np.newaxis
 from collections import deque
 import abc
+from warnings import warn
 
 from util.general import ibincount
 
@@ -24,44 +25,56 @@ class ParticleFilter(object):
         self.Neff_history = []
         self.numsteps = 0
 
-    def step(self,data,*args,**kwargs):
+    def step(self,data,resample_method='independent',particle_kwargs={}):
         for idx, particle in enumerate(self.particles):
-            self.locs[idx] = particle.sample_next(*args,**kwargs)
+            self.locs[idx] = particle.sample_next(**particle_kwargs)
         self.log_weights += self.log_likelihood_fn(self.numsteps,data,self.locs)
 
-        if self._Neff() < self.cutoff:
-            self._resample()
+        if self._Neff < self.cutoff:
+            self._resample(resample_method)
+            resampled = True
+        else:
+            resampled = False
 
         self.numsteps += 1
 
-    def change_numparticles(self,newnum):
+        return resampled
+
+    def change_numparticles(self,newnum,resample_method='independent'):
         if newnum != len(self.particles):
             self._resample(num=newnum)
 
+    def inject_particles(self,particles_to_inject,particle_kwargs={}):
+        self.locs = np.concatenate((self.locs,[p.sample_next(**particle_kwargs) for p in particles_to_inject]))
+        self.particles += particles_to_inject
+
+    @property
     def _Neff(self):
         self.weights_norm = np.exp(self.log_weights - np.logaddexp.reduce(self.log_weights))
         self.weights_norm /= self.weights_norm.sum()
         Neff = 1./np.sum(self.weights_norm**2)
 
         self.Neff_history.append((self.numsteps,Neff))
+
         if DEBUG:
             print Neff
 
         return Neff
 
-    def _resample(self,num=None):
-        num = num if num is not None else len(self.particles)
+    def _resample(self,method,num=None):
+        num = (num if num is not None else len(self.particles))
 
-        sources = self._independent_sources(num)
-        # sources = self._lowvariance_sources(num)
-
-        self.particles = [self.particles[idx].copy() for idx in sources]
-        self.locs = self.locs[sources]
+        assert method in ['lowvariance','independent']
+        if method is 'lowvariance':
+            sources = self._lowvariance_sources(num)
+        if method is 'independent':
+            sources = self._independent_sources(num)
 
         self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
         self.weights_norm = np.repeat(1./num, num)
 
         self.Nsurvive_history.append((self.numsteps,len(np.unique(sources))))
+
         if DEBUG:
             print self.Nsurvive_history[-1][1]
 
