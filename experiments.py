@@ -186,7 +186,7 @@ class RandomWalkLearnedNoise(Experiment):
 
         num_particles_firststep = 1024*100
         num_particles = 1024*100
-        cutoff = 1024*50
+        cutoff = 1024*10
 
         initial_n_0 = 1000
         subsequent_n_0 = 16+20
