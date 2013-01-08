@@ -189,7 +189,7 @@ class RandomWalkLearnedNoise(Experiment):
         cutoff = 1024*25
 
         initial_n_0 = 1000 # TODO could also just switch particle classes
-        subsequent_n_0 = 16+20
+        subsequent_n_0 = 16+10
 
         initial_randomwalk_noisecov = initial_n_0*np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))**2
         subsequent_randomwalk_noisecov = subsequent_n_0*np.diag((1.5,1.5,3.,0.5,0.01,0.05,0.05,0.5,) + (5.,)*(2+2*3))**2
