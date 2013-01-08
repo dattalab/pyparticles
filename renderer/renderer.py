@@ -750,7 +750,7 @@ class MouseScene(object):
             return all_likelihoods
 
 def test_single_mouse():
-    path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Mouse No Median Filter, No Dilation')
+    path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Blurred Edge')
     # which_img = 30
     # which_img = 731
     which_img = 5
