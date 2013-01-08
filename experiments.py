@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-import inspect, shutil, os, abc, cPickle, random
+import inspect, shutil, os, abc, cPickle
 
 from renderer.load_data import load_behavior_data
 from renderer.renderer import MouseScene
@@ -238,7 +238,7 @@ class RandomWalkWithInjection(Experiment):
                                     ),
                                     arggetters=(
                                         lambda d: {'sideinfo':d['sideinfo'][:2]},
-                                        lambda d: {'lagged_outputs': pose_model.default_particle_pose[2:]}
+                                        lambda d: {'lagged_outputs': [pose_model.default_particle_pose[2:],]}
                                     )
                                 )
                             ),
@@ -256,7 +256,6 @@ class RandomWalkWithInjection(Experiment):
         # re-calibrate after first step
         pf.change_numparticles(num_particles)
         for p in pf.particles:
-            assert hasattr(p.sampler,'counts')
             p.sampler.counts = np.array([5.,0.])*25 # TODO change
 
         for i in progprint_xrange(1,images.shape[0],perline=10):
