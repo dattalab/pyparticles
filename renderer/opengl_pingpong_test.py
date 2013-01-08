@@ -60,48 +60,110 @@ class TextureTest(object):
 
     def display(self):
 
+        # Step 1
+        # Draw textures
+
         # Bind the framebuffer (we'll draw into that, as opposed to the render buffer)
         glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
-
-        glViewport(0,0,self.viewport_width, self.viewport_height)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.textures[0], 0)
+        glViewport(0,0,self.width, self.height)
         # Get setup to draw
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        glOrtho(-1, 1, -1, 1, -1, 1)
+        glOrtho(0, 1, 0, 1, -1, 1)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         glClearColor(0.5, 0.5, 0.5, 1.0)        
         glDepthFunc(GL_LEQUAL)
 
-        # Bind the shader
-        glUseProgram(self.shaderProgram)
+        glUseProgram(self.renderShaderProgram)
 
-        # Texture stuff!
-
-        # Just draw a square
+        # Okay, draw some very simple depth into a texture
         glBegin(GL_QUADS)
+
         # One big quad
         glColor4f(0.0, 1.0, 0.0, 1.0)
         glTexCoord2f(0.0, 0.0)
-        glVertex3f(-1, -1, -0.5)
+        glVertex3f(0, 0, 0.0)
         glTexCoord2f(0.0, 1.0)
-        glVertex3f(-1, 1, -0.5)
+        glVertex3f(0, 1, 0.0)
         glTexCoord2f(1.0, 1.0)
-        glVertex3f(1, 1, -0.5)
+        glVertex3f(1, 1, 0.0)
         glTexCoord2f(1.0, 0.0)
-        glVertex3f(1, -1, -0.5)
+        glVertex3f(1, 0, 0.0)
+
+        new_width = 1.0/3.0
+        glColor4f(1.0, 0.0, 0.0, 1.0)
+        glTexCoord2f(0.0, 0.0)
+        glVertex3f(new_width, new_width, 1.0)
+        glTexCoord2f(0.0, 1.0)
+        glVertex3f(new_width, 2*new_width, 1.0)
+        glTexCoord2f(1.0, 1.0)
+        glVertex3f(new_width*2, new_width*2,1.0)
+        glTexCoord2f(1.0, 0.0)
+        glVertex3f(new_width*2, new_width, 1.0)
+
+        glEnd()
+
+        glUseProgram(0)
+
+
+        self.orig_data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
+
+        # Clean up after ourselves
+        
+        # Now switch where we draw
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.textures[1], 0)
+        glViewport(0,0,self.viewport_width, self.viewport_height)
+        # Get setup to draw
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+
+
+        # Bind the shader
+        glUseProgram(self.reductionShaderProgram)
+
+        # Texture stuff!
+        data_size_loc = glGetUniformLocation(self.reductionShaderProgram, "data_size")
+        glUniform2f(data_size_loc, self.width, self.height)
+        viewport_size_loc = glGetUniformLocation(self.reductionShaderProgram, "viewport_size")
+        glUniform2f(viewport_size_loc, self.viewport_width, self.viewport_height)
+
+        # This is the texture that contains data to be reduced
+        data_texture_loc = glGetUniformLocation(self.reductionShaderProgram, "data_texture")
+        glActiveTexture(GL_TEXTURE0+1)
+        glBindTexture(GL_TEXTURE_2D, self.textures[0])
+        glUniform1i(data_texture_loc, 1)
+
+        # Clean up
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, 0)
+
+        # Just draw a square
+        glBegin(GL_QUADS)
+
+        # One big quad
+        glColor4f(0.0, 1.0, 0.0, 1.0)
+        glTexCoord2f(0.0, 0.0)
+        glVertex3f(0, 0, 0.0)
+        glTexCoord2f(0.0, 1.0)
+        glVertex3f(0, 1, 0.0)
+        glTexCoord2f(1.0, 1.0)
+        glVertex3f(1, 1, 0.0)
+        glTexCoord2f(1.0, 0.0)
+        glVertex3f(1, 0, 0.0)
+
 
         glEnd()
         glUseProgram(0)
 
         # Okay, we've drawn a great square into a texture, 
         # and its depth values have been handled by the shader
-        # Now, it's time to try some reductions. We're going to attach a shader
-        # which is
+        # Now, it's time to try some reductions. 
 
         # Read off the pixels
-        self.data = glReadPixels(0,0,self.viewport_width,self.viewport_height, GL_DEPTH_COMPONENT, GL_FLOAT)
+        self.reduced_data = glReadPixels(0,0,self.viewport_width,self.viewport_height, GL_DEPTH_COMPONENT, GL_FLOAT)
 
         # Clean up after ourselves
         
@@ -120,11 +182,11 @@ class TextureTest(object):
         )
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE)
+        # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
+        # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
+        # glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        # glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        # glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE)
         glBindTexture(GL_TEXTURE_2D, 0)
 
         return t
@@ -168,7 +230,7 @@ class TextureTest(object):
         )
 
 
-    def setup_shaders(self):
+    def setup_reduction_shader(self):
 
         vShader = shaders.compileShader("""
             #version 120
@@ -186,21 +248,24 @@ class TextureTest(object):
             void main() {
 
                 // First, figure out the range of values we'll need to snag
-                vec2 ll = gl_FragCoord.xy / viewport_size;
-                vec2 ur = (gl_FragCoord.xy+1.0) / viewport_size;
-                ivec2 ll_pixel = ivec2(floor(ll*data_size));
-                ivec2 ur_pixel = ivec2(floor(ur*data_size));
-                int width = ur_pixel.x - ll_pixel.x;
-                int height = ur_pixel.y - ll_pixel.y;
+                vec2 scale = data_size / viewport_size;
+                vec2 ll = (gl_FragCoord.xy) * scale;
+                vec2 ur = (gl_FragCoord.xy+1) * scale;
+
+                ivec2 ll_pixel = ivec2(ll);
+                ivec2 ur_pixel = ivec2(ur);
+                
+                int width = int(scale.x);
+                int height = int(scale.y);
 
                 float num_pixels = width*height;
                 float target_depth = 0.0;
 
-                for (int i=int(ll_pixel.x); i < int(ur_pixel.x); ++i) {
+                for (int i=ll_pixel.x; i < ur_pixel.x; ++i) {
                     float x = i/data_size.x;
-                    for (int j=int(ll_pixel.y); j < int(ur_pixel.y); ++j) {
+                    for (int j=ll_pixel.y; j < ur_pixel.y; ++j) {
                         float y = j/data_size.y;
-                        float this_depth = texture2D(data_texture, vec2(x,y)).r;
+                        float this_depth = 1.0 - 2.0*texture2D(data_texture, vec2(x,y)).r;
                         target_depth += this_depth/num_pixels;
                     }
                 }
@@ -209,25 +274,25 @@ class TextureTest(object):
             }
             """, GL_FRAGMENT_SHADER)
 
-        self.shaderProgram = shaders.compileProgram(vShader, fShader)
+        self.reductionShaderProgram = shaders.compileProgram(vShader, fShader)
 
-        glUseProgram(self.shaderProgram)
-        data_size_loc = glGetUniformLocation(self.shaderProgram, "data_size")
-        glUniform2f(data_size_loc, self.width, self.height)
-        viewport_size_loc = glGetUniformLocation(self.shaderProgram, "viewport_size")
-        glUniform2f(viewport_size_loc, self.viewport_width, self.viewport_height)
 
-        # This is the texture that contains data to be reduced
-        data_texture_loc = glGetUniformLocation(self.shaderProgram, "data_texture")
-        glActiveTexture(GL_TEXTURE0+1)
-        glBindTexture(GL_TEXTURE_2D, self.textures[1])
-        glUniform1i(data_texture_loc, 1)
+    def setup_render_shader(self):
+        vShader = shaders.compileShader("""
+            #version 120
+            void main() {
+                gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+            }
+            """, GL_VERTEX_SHADER)
 
-        # Clean up
-        glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D, 0)
+        fShader = shaders.compileShader("""
+            #version 120
+            void main() {
+                gl_FragDepth = gl_FragCoord.z;
+            }
+            """, GL_FRAGMENT_SHADER)
 
-        glUseProgram(0)
+        self.renderShaderProgram = shaders.compileProgram(vShader, fShader)
 
 
 
@@ -246,13 +311,33 @@ class TextureTest(object):
         glEnable(GL_TEXTURE_2D)
 
         self.setup_fbo()
-        self.setup_shaders()
+        self.setup_reduction_shader()
+        self.setup_render_shader()
+
 
 
 
 if __name__ == "__main__":
-    t = TextureTest(300, 300, 150, 150)
+    a = 30
+    b = 9
+    t = TextureTest(a,a,b,b)
     t.gl_init()
     t.display()
-    figure(); imshow(t.data)
+    figure(figsize=(12,6)); 
+    subplot(1,2,1)
+    title("Original data")
+    t.orig_data = (1.0 - t.orig_data)
+    imshow(t.orig_data, origin='lowerleft')
+    xticks(range(a))
+    yticks(range(a))
+    colorbar()
+    subplot(1,2,2)
+    title("Reduced data")
+    scale = (t.width/t.viewport_width)*(t.height/t.viewport_height)
+    print scale
+    imshow(t.reduced_data, origin='lowerleft')
+    colorbar()
+    xticks(range(b))
+    yticks(range(b))
+
     # glutMainLoop()
