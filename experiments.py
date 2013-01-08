@@ -56,7 +56,7 @@ class Experiment(object):
 
         os.makedirs(self.cachepath)
 
-        with open(os.path.join(self.cachepath,'code'),'w') as outfile:
+        with open(os.path.join(self.cachepath,'code.py'),'w') as outfile:
             outfile.write(inspect.getsource(self.__class__))
 
         self.run()
