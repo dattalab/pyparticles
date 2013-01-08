@@ -197,6 +197,86 @@ class RandomWalkFixedNoise(Experiment):
             print ''
 
 
+class RandomWalkWithInjection(Experiment):
+    def run(self,frame_range):
+        datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
+
+        num_particles_firststep = 1024*50
+        num_particles = 1024*30
+        cutoff = 1024*15
+
+        xytheta_dart_noisechol = np.diag((2.,2.))
+        angles_dart_noisechol = np.diag((7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
+        randomwalk_noisechol = np.diag((1.5,1.5,3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
+
+        pose_model = pose_models.PoseModel3()
+
+        _build_mousescene(pose_model.scenefilepath)
+        images, xytheta = _load_data(datapath,frame_range)
+
+        # set defaults to initial xytheta (not really necessary anymore)
+        pose_model.default_renderer_pose = \
+            pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+        pose_model.default_particle_pose = \
+            pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+
+        def log_likelihood(stepnum,im,poses):
+            return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/500.
+
+        # these particles have a chance to teleport back to dart mode, which
+        # should be like injection
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.AR(
+                    numlags=1,
+                    previous_outputs=(pose_model.default_particle_pose,),
+                    baseclass=lambda: \
+                        pm.Mixture(
+                            components=(
+                                pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol)),
+                                pm.Concatenation(
+                                    components=(
+                                        pm.SideInfo(noiseclass=lambda: pd.FixedNoise(xytheta_dart_noisechol)),
+                                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(angles_dart_noisechol))
+                                    ),
+                                    arggetters=(
+                                        lambda d: {'sideinfo':d['sideinfo'][:2]},
+                                        lambda d: {'lagged_outputs': pose_model.default_particle_pose[2:]}
+                                    )
+                                )
+                            ),
+                            pseudocounts=np.array([0.,1.]),
+                            arggetters=(
+                                lambda d: {'lagged_outputs':d['lagged_outputs']},
+                                lambda d: {'lagged_outputs':d['lagged_outputs'],
+                                            'sideinfo':d['sideinfo']}
+                            )
+                        )
+                    ) for itr in range(num_particles_firststep)])
+
+        # first step is special
+        pf.step(images[0],particle_kwargs={'sideinfo':xytheta[0]})
+        # re-calibrate after first step
+        pf.change_numparticles(num_particles)
+        for p in pf.particles:
+            p.counts = np.array([5.,0.])*25 # TODO change
+
+        for i in progprint_xrange(1,images.shape[0],perline=10):
+            # save
+            if i % 10 == 0:
+                self.save_progress(pf,pose_model,datapath,frame_range)
+
+            # step
+            pf.step(images[i],particle_kwargs={'sideinfo':xytheta[i]})
+
+            # print
+            print len(np.unique([p.track[max(1,pf.numsteps-10)][0] for p in pf.particles]))
+            print ''
+
+
 class RandomWalkLearnedNoise(Experiment):
     def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
@@ -248,86 +328,6 @@ class RandomWalkLearnedNoise(Experiment):
             pf.step(images[i])
 
             print len(np.unique([p.track[1][0] for p in pf.particles]))
-            print ''
-
-
-class RandomWalkWithInjection(Experiment):
-    def run(self,frame_range):
-        datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
-
-        num_particles_firststep = 1024*20
-        num_particles = 1024*20
-        cutoff = 1024*10
-
-        randomwalk_noisechol = np.diag((1.5,1.5,4.,0.5,0.01,0.05,0.05,0.5,) + (4.,)*(2+2*3))
-        xytheta_dart_noisechol = np.diag((3.,3.))
-        angles_dart_noisechol = np.diag((7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
-
-        pose_model = pose_models.PoseModel3()
-
-        _build_mousescene(pose_model.scenefilepath)
-        images, xytheta = _load_data(datapath,frame_range)
-
-        # set defaults to initial xytheta (not really necessary anymore)
-        pose_model.default_renderer_pose = \
-            pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
-        pose_model.default_particle_pose = \
-            pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
-
-        def log_likelihood(stepnum,im,poses):
-            return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
-                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/3000.
-
-        # these particles have a chance to teleport back to dart mode, which
-        # should be like injection
-        pf = particle_filter.ParticleFilter(
-                pose_model.particle_pose_tuple_len,
-                cutoff,
-                log_likelihood,
-                [particle_filter.AR(
-                    numlags=1,
-                    previous_outputs=(pose_model.default_particle_pose,),
-                    baseclass=lambda: \
-                        pm.Mixture(
-                            components=(
-                                pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol)),
-                                pm.Concatenation(
-                                    components=(
-                                        pm.SideInfo(noiseclass=lambda: pd.FixedNoise(xytheta_dart_noisechol)),
-                                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(angles_dart_noisechol))
-                                    ),
-                                    arggetters=(
-                                        lambda d: {'sideinfo':d['sideinfo'][:2]},
-                                        lambda d: {'lagged_outputs': pose_model.default_particle_pose[2:]}
-                                    )
-                                )
-                            ),
-                            pseudocounts=np.array([0.,1.]),
-                            arggetters=(
-                                lambda d: {'lagged_outputs':d['lagged_outputs']},
-                                lambda d: {'lagged_outputs':d['lagged_outputs'],
-                                            'sideinfo':d['sideinfo']}
-                            )
-                        )
-                    ) for itr in range(num_particles_firststep)])
-
-        # first step is special
-        pf.step(images[0],particle_kwargs={'sideinfo':xytheta[0]})
-        # re-calibrate after first step
-        pf.change_numparticles(num_particles)
-        for p in pf.particles:
-            p.counts = np.array([5.,1.])*25
-
-        for i in progprint_xrange(1,images.shape[0],perline=10):
-            # save
-            if i % 10 == 0:
-                self.save_progress(pf,pose_model,datapath,frame_range)
-
-            # step
-            pf.step(images[i],particle_kwargs={'sideinfo':xytheta[i]})
-
-            # print
-            print len(np.unique([p.track[max(1,pf.numsteps-10)][0] for p in pf.particles]))
             print ''
 
 
