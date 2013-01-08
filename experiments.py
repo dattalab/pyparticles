@@ -184,9 +184,9 @@ class RandomWalkLearnedNoise(Experiment):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
         frame_range = (5,1000)
 
-        num_particles_firststep = 1024*30
-        num_particles = 1024*30
-        cutoff = 1024*15
+        num_particles_firststep = 1024*80
+        num_particles = 1024*50
+        cutoff = 1024*25
 
         initial_n_0 = 1000 # TODO could also just switch particle classes
         subsequent_n_0 = 16+20
@@ -206,7 +206,7 @@ class RandomWalkLearnedNoise(Experiment):
 
         def log_likelihood(stepnum,im,poses):
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
-                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/1000.
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/3000.
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
