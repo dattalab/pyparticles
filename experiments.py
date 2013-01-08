@@ -255,10 +255,16 @@ class RandomWalkLearnedNoiseWithInjection(Experiment):
     def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
 
-        num_particles_firststep = 1024*50
-        num_particles = 1024*30
-        num_to_inject = 5*1024
-        cutoff = 1024*10
+        # num_particles_firststep = 1024*50
+        # num_particles = 1024*30
+        # num_to_inject = 5*1024
+        # cutoff = 1024*10
+
+        # TODO set these back
+        num_particles_firststep = 1024*5
+        num_particles = 1024*5
+        num_to_inject = 1024
+        cutoff = 1024*2
 
         initial_n_0 = 1000
         subsequent_n_0 = 16+20
