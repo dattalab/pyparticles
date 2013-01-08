@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+na = np.newaxis
 from collections import deque
 import abc
 
