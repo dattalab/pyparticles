@@ -257,7 +257,7 @@ class RandomWalkWithInjection(Experiment):
         # re-calibrate after first step
         pf.change_numparticles(num_particles)
         for p in pf.particles:
-            p.sampler.counts = np.array([5.,0.])*25 # TODO change
+            p.sampler.counts = np.array([5.,1.])*10
 
         for i in progprint_xrange(1,images.shape[0],perline=10):
             # save
