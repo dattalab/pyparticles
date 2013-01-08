@@ -4,14 +4,16 @@ The concepts involved are framebuffer objects, render-to-texture,
 sampler2D, fragment shaders and ping-pong (reduction) shading.
 
 The approach is this:
-Create a framebuffer object (FBO), bind it. 
+- Create a framebuffer object (FBO), bind it. 
 The framebuffer is an abstract "destination" of sorts for OpenGL. 
 It is where pixels will be stored after rendering.
-An FBO needs within itself a concrete destination for the pixels. 
-Here, we'll be attaching a texture to the framebuffer which will
-receive the pixels. 
-Render the mice
-At this point, we go to town reducing the differences.
+An FBO needs to have attached to itself a concrete destination for the pixels. 
+Here, we'll be attaching a texture which will receive the pixels. 
+- Render the mice into that texture
+
+- Create a viewport that has as many pixels as there are mice
+- For each coordinate
+
 """
 
 from __future__ import division
@@ -34,10 +36,12 @@ from OpenGL.GL.ARB.shadow import *
 # Get a texture up on the screen
 class TextureTest(object):
     """docstring for TextureTest"""
-    def __init__(self, width, height):
+    def __init__(self, width, height, viewport_width, viewport_height):
         super(TextureTest, self).__init__()
         self.width = width
         self.height = height
+        self.viewport_width = viewport_width
+        self.viewport_height = viewport_height
         
         self.lastkey = ''
         self.lastx = self.width/2.
@@ -59,6 +63,7 @@ class TextureTest(object):
         # Bind the framebuffer (we'll draw into that, as opposed to the render buffer)
         glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
 
+        glViewport(0,0,self.viewport_width, self.viewport_height)
         # Get setup to draw
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glMatrixMode(GL_PROJECTION)
@@ -99,12 +104,18 @@ class TextureTest(object):
         glVertex3f(0, -1, -0.1)
 
         glEnd()
+        glUseProgram(0)
+
+        # Okay, we've drawn a great square into a texture, 
+        # and its depth values have been handled by the shader
+        # Now, it's time to try some reductions. We're going to attach a shader
+        # which is
 
         # Read off the pixels
-        self.data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
+        self.data = glReadPixels(0,0,self.viewport_width,self.viewport_height, GL_DEPTH_COMPONENT, GL_FLOAT)
 
         # Clean up after ourselves
-        glUseProgram(0)
+        
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 
@@ -185,20 +196,43 @@ class TextureTest(object):
             #version 120
             varying vec4 the_color;
             uniform sampler2D data_texture;
-            uniform vec2 image_size;
+            uniform vec2 viewport_size;
+            uniform vec2 data_size;
+            
             void main() {
-                gl_FragDepth = gl_FragCoord.x/image_size[0];
-                vec4 a = texture2D(data_texture, vec2(gl_FragCoord.x/image_size.x, 1.0 - gl_FragCoord.y/image_size.y));
-                vec4 b = texture2D(data_texture, vec2(gl_FragCoord.x/image_size.x, gl_FragCoord.y/image_size.y));
-                gl_FragDepth = (a.r + b.r)/2.0;
+
+                // First, figure out the range of values we'll need to snag
+                vec2 ll = gl_FragCoord.xy / viewport_size;
+                vec2 ur = (gl_FragCoord.xy+1.0) / viewport_size;
+                ivec2 ll_pixel = ivec2(floor(ll*data_size));
+                ivec2 ur_pixel = ivec2(floor(ur*data_size));
+                int width = ur_pixel.x - ll_pixel.x;
+                int height = ur_pixel.y - ll_pixel.y;
+
+                float num_pixels = width*height;
+                float target_depth = 0.0;
+
+                for (int i=int(ll_pixel.x); i < int(ur_pixel.x); ++i) {
+                    float x = i/data_size.x;
+                    for (int j=int(ll_pixel.y); j < int(ur_pixel.y); ++j) {
+                        float y = j/data_size.y;
+                        float this_depth = texture2D(data_texture, vec2(x,y)).r;
+                        target_depth += this_depth/num_pixels;
+                    }
+                }
+                gl_FragDepth = target_depth;
+
             }
             """, GL_FRAGMENT_SHADER)
 
         self.shaderProgram = shaders.compileProgram(vShader, fShader)
 
         glUseProgram(self.shaderProgram)
-        image_size_loc = glGetUniformLocation(self.shaderProgram, "image_size")
-        glUniform2f(image_size_loc, self.width, self.height)
+        data_size_loc = glGetUniformLocation(self.shaderProgram, "data_size")
+        glUniform2f(data_size_loc, self.width, self.height)
+        viewport_size_loc = glGetUniformLocation(self.shaderProgram, "viewport_size")
+        glUniform2f(viewport_size_loc, self.viewport_width, self.viewport_height)
+
 
         data_texture_loc = glGetUniformLocation(self.shaderProgram, "data_texture")
         glActiveTexture(GL_TEXTURE0)
@@ -229,7 +263,7 @@ class TextureTest(object):
 
 
 if __name__ == "__main__":
-    t = TextureTest(300, 300)
+    t = TextureTest(300, 300, 15, 15)
     t.gl_init()
     t.display()
     figure(); imshow(t.data)
