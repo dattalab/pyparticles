@@ -28,18 +28,18 @@ class Experiment(object):
 
     ### probably shouldn't be overridden
 
-    def save_progress(self,particlefilter,frame_range):
+    def save_progress(self,particlefilter,pose_model,datapath,frame_range):
         outfilename = os.path.join(self.cachepath,str(particlefilter.numsteps))
         with open(outfilename,'w') as outfile:
-            cPickle.dump((particlefilter,frame_range),outfile,protocol=2)
+            cPickle.dump((particlefilter,pose_model,datapath,frame_range),outfile,protocol=2)
         shutil.copy(outfilename,os.path.join('Test Data','current_run'))
 
     def load_most_recent_progress(self):
         most_recent_filename = os.path.join(self.cachepath,
                 max([int(x) for x in os.listdir(self.cachepath) if x.isdigit()]))
         with open(os.path.join(self.cachepath,most_recent_filename),'r') as infile:
-            particlefilter, frame_range = cPickle.load(infile)
-        return particlefilter, frame_range
+            particlefilter, pose_model, datapath, frame_range = cPickle.load(infile)
+        return particlefilter, pose_model, datapath, frame_range
 
     ### don't override this stuff
 
@@ -121,7 +121,7 @@ class SideInfoFixedNoise(Experiment):
 
         for i in progprint_xrange(1,images.shape[0],perline=10):
             if i % 10 == 0:
-                self.save_progress(pf,frame_range)
+                self.save_progress(pf,pose_model,datapath,frame_range)
             pf.step(images[i],sideinfo=xytheta[i])
 
         self.save_progress(pf,frame_range)
@@ -132,7 +132,7 @@ class RandomWalkFixedNoise(Experiment):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
         frame_range = (5,1000)
 
-        num_particles_firststep = 1024*50
+        num_particles_firststep = 1024*30
         num_particles = 1024*20
         cutoff = 1024*10
 
@@ -169,7 +169,7 @@ class RandomWalkFixedNoise(Experiment):
 
         for i in progprint_xrange(1,images.shape[0],perline=10):
             if i % 10 == 0:
-                self.save_progress(pf,frame_range)
+                self.save_progress(pf,pose_model,datapath,frame_range)
             pf.step(images[i])
 
 ######################

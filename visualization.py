@@ -15,7 +15,7 @@ max_vert = 500
 dest_dir = "/Users/mattjj/Desktop/movie_new"
 
 # Load the real data
-path_to_behavior_data = "Test Data"
+path_to_behavior_data = "Test Data/Blurred Edge"
 imgs = load_behavior_data(path_to_behavior_data, num_frames+1, "images")[5:]
 centroids = load_behavior_data(path_to_behavior_data, num_frames+1, "centroid")[5:]
 x,y = centroids[:,0], centroids[:,1]

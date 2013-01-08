@@ -68,6 +68,19 @@ class PoseModelBase(object):
         self.default_particle_pose = self.ParticlePose(*[self.default_renderer_pose.__dict__[f]
             for f in self.ParticlePose._fields])
 
+    # namedtuples break pickling!
+
+    def __getstate__(self):
+        return {
+                '_default_indices':self._default_indices,
+                '_expand_indices':self._expand_indices,
+                'renderer_pose_tuple_len':self.renderer_pose_tuple_len,
+                'default_renderer_pose':np.array(self.default_renderer_pose),
+                }
+
+    def __setstate__(self,dct):
+        self.__dict__.update(**dct)
+
 
 ################
 #  PoseModels  #
@@ -83,11 +96,11 @@ class PoseModel1(PoseModelBase):
     scenefilepath = "renderer/data/mouse_mesh_low_poly.npz"
 
     ParticlePose = namedtuple(
-            'PoseModel1ParticlePose',
+            'ParticlePose',
             ['x','y','theta'] + ['psi_%s%d'%(v,i) for i in range(1,10) for v in ['y','z']])
 
     RendererPose = namedtuple(
-            'PoseModel1RendererPose',
+            'RendererPose',
             ['x','y','theta'] + ['psi_%s%d'%(v,i) for i in range(1,10) for v in ['x','y','z']])
 
     del i,v
@@ -113,12 +126,12 @@ class PoseModel2(PoseModelBase):
     scenefilepath = "renderer/data/mouse_mesh_low_poly2.npz"
 
     ParticlePose = namedtuple(
-            'PoseModel2ParticlePose',
+            'ParticlePose',
             ['x','y','theta_yaw','z','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,7) for v in ['y','z']])
 
     RendererPose = namedtuple(
-            'PoseModel2ParticlePose',
+            'RendererPose',
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,7) for v in ['x','y','z']])
 
@@ -147,14 +160,14 @@ class PoseModel3(PoseModelBase):
     scenefilepath = "renderer/data/mouse_mesh_low_poly3.npz"
 
     ParticlePose = namedtuple(
-            'PoseModel3ParticlePose',
+            'ParticlePose',
             ['x','y','theta_yaw',
              'z','theta_roll','s_w','s_l','s_h',
              'psi_z1','psi_z2',
              'psi_y3','psi_z3','psi_y4','psi_z4','psi_y5','psi_z5'])
 
     RendererPose = namedtuple(
-            'PoseModel3RendererPose',
+            'RendererPose',
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
 
