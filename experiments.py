@@ -221,9 +221,9 @@ class RandomWalkLearnedNoise(Experiment):
         pf.step(images[0])
         pf.change_numparticles(num_particles)
         for p in pf.particles:
-            p.sampler.yyt[:] = 0
-            p.sampler.S_0 = subsequent_randomwalk_noisecov
-            p.sampler.n_n = subsequent_n_0
+            p.sampler.noisesampler.yyt[:] = 0
+            p.sampler.noisesampler.S_0 = subsequent_randomwalk_noisecov
+            p.sampler.noisesampler.n_n = subsequent_n_0
 
         for i in progprint_xrange(1,images.shape[0],perline=10):
             if i % 10 == 0:
