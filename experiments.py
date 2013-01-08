@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-import inspect, shutil, os, abc, cPickle
+import inspect, shutil, os, abc, cPickle, random
 
 from renderer.load_data import load_behavior_data
 from renderer.renderer import MouseScene
@@ -260,23 +260,22 @@ class RandomWalkLearnedNoiseWithInjection(Experiment):
         # num_to_inject = 5*1024
         # cutoff = 1024*10
 
-        # TODO set these back
         num_particles_firststep = 1024*5
         num_particles = 1024*5
-        num_to_inject = 1024
         cutoff = 1024*2
 
-        initial_n_0 = 1000
-        subsequent_n_0 = 16+20
+        randomwalk_n_0 = 16+1000
+        randomwalk_noisecov = randomwalk_n_0*np.diag((3.,3.,5.,0.5,0.01,0.05,0.05,0.5,) + (5.,)*(2+2*3))**2
 
-        initial_randomwalk_noisecov = initial_n_0*np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))**2
-        subsequent_randomwalk_noisecov = subsequent_n_0*np.diag((3.,3.,5.,0.5,0.01,0.05,0.05,0.5,) + (5.,)*(2+2*3))**2
+        xytheta_dart_noisechol = np.diag((2.,2.))
+        angles_dart_noisechol = np.diag((7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
 
         pose_model = pose_models.PoseModel3()
 
         _build_mousescene(pose_model.scenefilepath)
         images, xytheta = _load_data(datapath,frame_range)
 
+        # set defaults to initial xytheta (not really necessary anymore)
         pose_model.default_renderer_pose = \
             pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
         pose_model.default_particle_pose = \
@@ -286,12 +285,8 @@ class RandomWalkLearnedNoiseWithInjection(Experiment):
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
                 x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/3000.
 
-        def set_particles_to_subsequent_params(particles):
-            for p in particles:
-                p.sampler.noisesampler.yyt[:] = 0
-                p.sampler.noisesampler.S_0 = subsequent_randomwalk_noisecov
-                p.sampler.noisesampler.n_n = subsequent_n_0
-
+        # these particles have a chance to teleport back to dart mode, which
+        # should be like injection
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
                 cutoff,
@@ -299,13 +294,38 @@ class RandomWalkLearnedNoiseWithInjection(Experiment):
                 [particle_filter.AR(
                     numlags=1,
                     previous_outputs=(pose_model.default_particle_pose,),
-                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: \
-                            pd.InverseWishartNoise(initial_n_0,initial_randomwalk_noisecov))
+                    baseclass=lambda: \
+                        pm.Mixture(
+                            components=(
+                                pm.RandomWalk(noiseclass=lambda: \
+                                        pd.InverseWishartNoise(randomwalk_n_0,randomwalk_noisecov)),
+                                pm.Concatenation(
+                                    components=(
+                                        pm.SideInfo(noiseclass=lambda: pd.FixedNoise(xytheta_dart_noisechol)),
+                                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(angles_dart_noisechol))
+                                    ),
+                                    arggetters=(
+                                        lambda d: {'sideinfo':d['sideinfo'][:2]},
+                                        lambda d: {'lagged_outputs': pose_model.default_particle_pose[2:]}
+                                    )
+                                )
+                            ),
+                            pseudocounts=np.array([0.,1.]),
+                            arggetters=(
+                                lambda d: {'lagged_outputs':d['lagged_outputs']},
+                                lambda d: {'lagged_outputs':d['lagged_outputs'],
+                                            'sideinfo':d['sideinfo']}
+                            )
+                        )
                     ) for itr in range(num_particles_firststep)])
 
-        pf.step(images[0])
+        # first step is special
+        pf.step(images[0],sideinfo=xytheta[0])
+
+        # re-calibrate after first step
         pf.change_numparticles(num_particles)
-        set_particles_to_subsequent_params(pf.particles)
+        for p in pf.particles:
+            p.counts = np.array([5.,1.])*25
 
         for i in progprint_xrange(1,images.shape[0],perline=10):
             # save
@@ -313,19 +333,7 @@ class RandomWalkLearnedNoiseWithInjection(Experiment):
                 self.save_progress(pf,pose_model,datapath,frame_range)
 
             # step
-            pf.step(images[i])
-
-            # inject
-            injected_particles = \
-                [particle_filter.AR(
-                    numlags=1,
-                    previous_outputs=(pose_model.default_particle_pose,),
-                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: \
-                            pd.InverseWishartNoise(initial_n_0,initial_randomwalk_noisecov)),
-                ) for itr in range(num_to_inject)]
-            pf.inject_particles(injected_particles)
-            pf.change_numparticles(num_particles)
-            set_particles_to_subsequent_params(pf.particles)
+            pf.step(images[i],sideinfo=xytheta[i])
 
             # print
             print len(np.unique([p.track[1][0] for p in pf.particles]))

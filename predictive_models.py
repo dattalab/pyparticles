@@ -11,18 +11,21 @@ from util.stats import sample_discrete
 ##########
 
 class Mixture(object):
-    def __init__(self,weights,components):
-        self.weights = weights
+    def __init__(self,pseudocounts,components,arggetters):
+        self.counts = pseudocounts.copy()
         self.components = components
+        self.arggetters = arggetters
 
-    def sample_next(self,*args,**kwargs):
-        label = sample_discrete(self.weights)
-        return self.components[label].sample_next(*args,**kwargs)
+    def sample_next(self,**kwargs):
+        label = sample_discrete(self.counts)
+        self.counts[label] += 1
+        return self.components[label].sample_next(**self.arggetters[label](kwargs))
 
     def copy(self):
         new = self.__new__(self.__class__)
-        new.weights = self.weights
+        new.counts = self.counts.copy()
         new.components = [c.copy() for c in self.components]
+        new.arggetters = self.arggetters
         return new
 
 
@@ -40,6 +43,8 @@ class Concatenation(object):
         new.components = [c.copy() for c in self.components]
         new.arggetters = self.arggetters
         return new
+
+# TODO TODO sequence
 
 ###################
 #  'Dumb' models  #

@@ -124,7 +124,6 @@ def dumb_randomwalk_learnednoise():
 
     return interactive(initial_particles,2500,plotfunc)
 
-
 def interactive(initial_particles,cutoff,plotfunc):
     sigma = 10.
     def loglikelihood(_,locs,data):
