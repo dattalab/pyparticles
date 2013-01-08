@@ -83,7 +83,7 @@ class Experiment(object):
 
     @property
     def cachepath(self):
-        return str(abs(hash(inspect.getsource(self.__class__))))
+        return os.path.join('results',str(abs(hash(inspect.getsource(self.__class__)))))
 
 #################
 #  Experiments  #
