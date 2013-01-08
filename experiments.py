@@ -206,7 +206,7 @@ class RandomWalkLearnedNoise(Experiment):
 
         def log_likelihood(stepnum,im,poses):
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
-                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/3000.
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/5000.
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
