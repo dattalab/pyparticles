@@ -32,7 +32,7 @@ class Experiment(object):
         outfilename = os.path.join(self.cachepath,str(particlefilter.numsteps))
         with open(outfilename,'w') as outfile:
             cPickle.dump((particlefilter,frame_range),outfile,protocol=2)
-        shutil.copy(outfilename,'current_run')
+        shutil.copy(outfilename,os.path.join('Test Data','current_run'))
 
     def load_most_recent_progress(self):
         most_recent_filename = os.path.join(self.cachepath,
