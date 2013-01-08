@@ -260,9 +260,9 @@ class RandomWalkLearnedNoiseWithInjection(Experiment):
         # num_to_inject = 5*1024
         # cutoff = 1024*10
 
-        num_particles_firststep = 1024*5
-        num_particles = 1024*5
-        cutoff = 1024*2
+        num_particles_firststep = 1024*30
+        num_particles = 1024*20
+        cutoff = 1024*10
 
         randomwalk_n_0 = 16+1000
         randomwalk_noisecov = randomwalk_n_0*np.diag((3.,3.,5.,0.5,0.01,0.05,0.05,0.5,) + (5.,)*(2+2*3))**2
@@ -338,6 +338,7 @@ class RandomWalkLearnedNoiseWithInjection(Experiment):
             # print
             print len(np.unique([p.track[max(1,pf.numsteps-10)][0] for p in pf.particles]))
             print ''
+
 
 # TODO dynamics/momentum experiment
 
