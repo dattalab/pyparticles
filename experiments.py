@@ -124,6 +124,9 @@ class SideInfoFixedNoise(Experiment):
                 self.save_progress(pf,pose_model,datapath,frame_range)
             pf.step(images[i],sideinfo=xytheta[i])
 
+            print len(np.unique([p.track[1][0] for p in pf.particles]))
+            print ''
+
         self.save_progress(pf,frame_range)
 
 
@@ -151,7 +154,7 @@ class RandomWalkFixedNoise(Experiment):
 
         def log_likelihood(stepnum,im,poses):
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
-                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/2000.
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/3000.
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
@@ -171,6 +174,9 @@ class RandomWalkFixedNoise(Experiment):
             if i % 10 == 0:
                 self.save_progress(pf,pose_model,datapath,frame_range)
             pf.step(images[i])
+
+            print len(np.unique([p.track[1][0] for p in pf.particles]))
+            print ''
 
 
 class RandomWalkLearnedNoise(Experiment):
@@ -223,6 +229,9 @@ class RandomWalkLearnedNoise(Experiment):
             if i % 10 == 0:
                 self.save_progress(pf,pose_model,datapath,frame_range)
             pf.step(images[i])
+
+            print len(np.unique([p.track[1][0] for p in pf.particles]))
+            print ''
 
 
 ######################
