@@ -63,11 +63,11 @@ class Experiment(object):
 
     ### don't override this stuff
 
-    def __init__(self):
+    def __init__(self,frame_range):
         if os.path.exists(self.cachepath):
             response = raw_input('cache file exists: [o]verwrite, [r]esume, or do [N]othing? ').lower()
             if response == 'r':
-                self.resume()
+                self.resume(frame_range)
             elif response == 'o':
                 shutil.rmtree(self.cachepath)
             else:
@@ -79,7 +79,7 @@ class Experiment(object):
         with open(os.path.join(self.cachepath,'code.py'),'w') as outfile:
             outfile.write(inspect.getsource(self.__class__))
 
-        self.run()
+        self.run(frame_range)
 
     @property
     def cachepath(self):
