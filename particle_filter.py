@@ -93,6 +93,9 @@ class ParticleFilter(object):
         if method is 'independent':
             sources = self._independent_sources(num)
 
+        self.particles = [self.particles[i].copy() for i in sources]
+        self.locs = self.locs[sources]
+
         self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
         self.weights_norm = np.repeat(1./num, num)
 
@@ -107,7 +110,7 @@ class ParticleFilter(object):
     def _lowvariance_sources(self,num):
         r = np.random.rand()/num
         bins = np.concatenate(((0,),np.cumsum(self.weights_norm)))
-        return ibincount(np.histogram(r*(np.arange(1,1+num)),bins)[0])
+        return ibincount(np.histogram(r+np.linspace(0,1,num,endpoint=False),bins)[0])
 
     def __getstate__(self):
         result = self.__dict__.copy()

@@ -108,7 +108,7 @@ def dumb_randomwalk_fixednoise():
     return interactive(initial_particles,2500,plotfunc)
 
 def dumb_randomwalk_learnednoise():
-    num_pseudoobs = 25
+    num_pseudoobs = 1000
     noisecov = 30**2*np.eye(2) * num_pseudoobs
     initial_particles = [
             pf.AR(
@@ -156,7 +156,7 @@ def interactive(initial_particles,cutoff,plotfunc):
 
             plt.clf()
 
-            particlefilter.step(out)
+            particlefilter.step(out,resample_method='lowvariance')
             particlefilter.change_numparticles(5000) # TESTING
 
             plotfunc(particlefilter.particles,particlefilter.weights_norm)
