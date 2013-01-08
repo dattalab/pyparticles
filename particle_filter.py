@@ -50,9 +50,9 @@ class ParticleFilter(object):
         return Neff
 
     def _resample(self,num=None):
-        num = num if num is not None else len(self.particles)
+        # sources = self._independent_sources(num)
+        sources = self._lowvariance_sources(num)
 
-        sources = ibincount(np.random.multinomial(num,self.weights_norm))
         self.particles = [self.particles[idx].copy() for idx in sources]
         self.locs = self.locs[sources]
 
@@ -62,6 +62,16 @@ class ParticleFilter(object):
         self.Nsurvive_history.append((self.numsteps,len(np.unique(sources))))
         if DEBUG:
             print self.Nsurvive_history[-1][1]
+
+    def _independent_sources(self,num):
+        num = num if num is not None else len(self.particles)
+        return ibincount(np.random.multinomial(num,self.weights_norm))
+
+    def _lowvariance_sources(self,num):
+        num = num if num is not None else len(self.particles)
+        r = np.random.rand(1./num)
+        bins = np.concatenate(((0,),np.cumsum(self.weights_norm)))
+        return ibincount(np.histogram(r*(1+np.arange(len(self.particles))),bins)[0])
 
     def __getstate__(self):
         result = self.__dict__.copy()
