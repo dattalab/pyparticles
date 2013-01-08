@@ -69,15 +69,14 @@ class Experiment(object):
 #  Experiments  #
 #################
 
-
 class SideInfoFixedNoise(Experiment):
     def run(self):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
         frame_range = (5,1000)
 
         num_particles_firststep = 1024*50
-        num_particles = 1024*20
-        cutoff = 1024*10
+        num_particles = 1024*30
+        cutoff = 1024*15
 
         xytheta_noisechol = np.diag((2.,2.))
 
