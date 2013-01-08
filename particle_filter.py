@@ -52,8 +52,8 @@ class ParticleFilter(object):
     def _resample(self,num=None):
         num = num if num is not None else len(self.particles)
 
-        # sources = self._independent_sources(num)
-        sources = self._lowvariance_sources(num)
+        sources = self._independent_sources(num)
+        # sources = self._lowvariance_sources(num)
 
         self.particles = [self.particles[idx].copy() for idx in sources]
         self.locs = self.locs[sources]
