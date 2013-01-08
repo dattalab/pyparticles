@@ -134,14 +134,14 @@ class SideInfoFixedNoise(Experiment):
                             )
                     ) for itr in range(num_particles_firststep)])
 
-        pf.step(images[0],sideinfo=xytheta[0])
+        pf.step(images[0],particle_kwargs={'sideinfo':xytheta[0]})
         pf.change_numparticles(num_particles)
         randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
 
         for i in progprint_xrange(1,images.shape[0],perline=10):
             if i % 10 == 0:
                 self.save_progress(pf,pose_model,datapath,frame_range)
-            pf.step(images[i],sideinfo=xytheta[i])
+            pf.step(images[i],particle_kwargs={'sideinfo':xytheta[i]})
 
             print len(np.unique([p.track[1][0] for p in pf.particles]))
             print ''
@@ -255,12 +255,12 @@ class RandomWalkWithInjection(Experiment):
     def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
 
-        num_particles_firststep = 1024*50
-        num_particles = 1024*30
+        num_particles_firststep = 1024*20
+        num_particles = 1024*20
         cutoff = 1024*10
 
         randomwalk_noisechol = np.diag((1.5,1.5,4.,0.5,0.01,0.05,0.05,0.5,) + (4.,)*(2+2*3))
-        xytheta_dart_noisechol = np.diag((2.,2.))
+        xytheta_dart_noisechol = np.diag((3.,3.))
         angles_dart_noisechol = np.diag((7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
 
         pose_model = pose_models.PoseModel3()
@@ -313,7 +313,6 @@ class RandomWalkWithInjection(Experiment):
 
         # first step is special
         pf.step(images[0],particle_kwargs={'sideinfo':xytheta[0]})
-
         # re-calibrate after first step
         pf.change_numparticles(num_particles)
         for p in pf.particles:
