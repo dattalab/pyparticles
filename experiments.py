@@ -18,7 +18,7 @@ class Experiment(object):
     ### must override this
 
     @abc.abstractmethod
-    def run(self):
+    def run(self,frame_range):
         pass
 
     ### should probably override this
@@ -32,6 +32,26 @@ class Experiment(object):
         outfilename = os.path.join(self.cachepath,str(particlefilter.numsteps))
         with open(outfilename,'w') as outfile:
             cPickle.dump((particlefilter,pose_model,datapath,frame_range),outfile,protocol=2)
+
+        descripfilename = os.path.join(self.cachepath,'description.txt')
+        if not os.path.exists(descripfilename):
+            with open(descripfilename) as outfile:
+                outfile.write(
+                        '''
+        experiment: %s
+        data path: %s
+        frame range: %s
+        pose model: %s
+
+        code.py contains the experiment code used to run the experiment; see also experiments.py
+
+        the step-numbered files are saved with pickle via
+            with open(outfilename,'w') as outfile:
+                cPickle.dump((particlefilter,pose_model,datapath,frame_range),
+                                outfile,protocol=2)
+                        ''' % (self.__class__.__name__, datapath, frame_range, pose_model)
+                        )
+
         shutil.copy(outfilename,os.path.join('Test Data','current_run'))
 
     def load_most_recent_progress(self):
@@ -70,9 +90,8 @@ class Experiment(object):
 #################
 
 class SideInfoFixedNoise(Experiment):
-    def run(self):
+    def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
-        frame_range = (5,1000)
 
         num_particles_firststep = 1024*50
         num_particles = 1024*30
@@ -131,9 +150,8 @@ class SideInfoFixedNoise(Experiment):
 
 
 class RandomWalkFixedNoise(Experiment):
-    def run(self):
+    def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
-        frame_range = (5,1000)
 
         num_particles_firststep = 1024*30
         num_particles = 1024*20
@@ -180,13 +198,12 @@ class RandomWalkFixedNoise(Experiment):
 
 
 class RandomWalkLearnedNoise(Experiment):
-    def run(self):
+    def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
-        frame_range = (5,1000)
 
         num_particles_firststep = 1024*50
-        num_particles = 1024*50
-        cutoff = 1024*25
+        num_particles = 1024*30
+        cutoff = 1024*10
 
         initial_n_0 = 1000
         subsequent_n_0 = 16+20
@@ -233,6 +250,7 @@ class RandomWalkLearnedNoise(Experiment):
             print len(np.unique([p.track[1][0] for p in pf.particles]))
             print ''
 
+# TODO dynamics/momentum experiment
 
 ######################
 #  Common Utilities  #

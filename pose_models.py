@@ -81,6 +81,9 @@ class PoseModelBase(object):
     def __setstate__(self,dct):
         self.__dict__.update(**dct)
 
+    def __str__(self):
+        return self.__class__.__name__
+
 
 ################
 #  PoseModels  #
