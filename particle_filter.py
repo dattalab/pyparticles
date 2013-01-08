@@ -131,3 +131,16 @@ class AR(BasicParticle):
             new.initial_sampler = self.initial_sampler.copy()
         return new
 
+###############
+#  Utilities  #
+###############
+
+def topktracks(pf,k):
+    indices = np.argsort(pf.weights_norm)[:-(k+1):-1]
+    return np.array([pf.particles[i].track for i in indices]), pf.weights_norm[indices]
+
+def meantrack(pf):
+    track = np.array(pf.particles[0].track)*pf.weights_norm[0,na]
+    for p,w in zip(pf.particles[1:],pf.weights_norm[1:]):
+        track += np.array(p.track) * w
+    return track

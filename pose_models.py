@@ -170,6 +170,11 @@ class PoseModel3(PoseModelBase):
 
         super(PoseModel3,self).__init__()
 
+
+##################################
+#  why are these next two here?  #
+##################################
+
 class PoseModel4(PoseModel3):
     __metaclass__ = PoseModelMetaclass
 

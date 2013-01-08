@@ -57,3 +57,26 @@ for i in range(num_frames-5):
 	Image.fromarray(I.astype('uint8')).save(join(dest_dir, "%03d.png" % i))
 
 
+
+# TODO
+def movie(conf,track):#,outdir):
+    # import Image
+    # from util.general import scoreatpercentile
+    _build_mousescene(conf), _load_data_and_sideinfo(conf)
+
+    # _d = images.flatten()
+    # scale = scoreatpercentile(_d[_d != 0],90,0)[0]
+
+    rendered_images = ms.get_likelihood(
+            np.zeros(images[0].shape),
+            particle_data=conf.pose_model.expand_poses(track),
+            x=xytheta[:,0],
+            y=xytheta[:,1],
+            theta=xytheta[:,2],
+            return_posed_mice=True)[1]
+
+    np.save('posed_mice.npy',rendered_images)
+
+    # for i, (truth, rendered) in progprint(enumerate(zip(images,rendered_images)),total=len(rendered_images)):
+        # Image.fromarray(np.clip(np.hstack((truth,rendered))*(255./scale),0,255.).astype('uint8'))\
+        #         .save(os.path.join(outdir,'frame%d.png'%(i+conf.frame_range[0])))
