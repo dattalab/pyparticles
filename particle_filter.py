@@ -44,7 +44,7 @@ class ParticleFilter(object):
 
     def change_numparticles(self,newnum,resample_method='lowvariance'):
         if newnum != len(self.particles):
-            self._resample(num=newnum)
+            self._resample(resample_method,num=newnum)
 
     def inject_particles(self,particles_to_inject,particle_kwargs={}):
         # breaks posterior estimation, but good for tracking!
