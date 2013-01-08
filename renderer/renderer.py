@@ -643,18 +643,38 @@ class MouseScene(object):
         glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGB, GL_FLOAT, img_for_texture)
 
     def setup_fbo(self):
+
+        # Make a framebuffer and bind it
         self.frameBuffer = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
-        self.renderBuffer = glGenRenderbuffers(1)
-        glBindRenderbuffer(GL_RENDERBUFFER, self.renderBuffer)
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32, self.width, self.height)
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.renderBuffer)
 
+        # Setup a texture that will accept all drawn pixels
+        self.frameBufferTexture = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, self.frameBufferTexture)
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL)
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+            self.width, self.height, 0,
+            GL_DEPTH_COMPONENT, GL_FLOAT, None
+        )
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE)
+        glBindTexture(GL_TEXTURE_2D, 0)
+
+        # Tell the framebuffer to send pixels to the texture we just made
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.frameBufferTexture, 0)
+
+        # Every FBO has to have a color attachment. We don't persist it
+        # because we won't be using it. We only care about depth.
         color = glGenRenderbuffers(1)
         glBindRenderbuffer( GL_RENDERBUFFER, color )
         glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, self.width, self.height)
         glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color )
-
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
     def gl_init(self):
@@ -674,11 +694,6 @@ class MouseScene(object):
         # States to set
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_NORMALIZE)
-        glEnable(GL_BLEND)
-        glEnable(GL_LINE_SMOOTH)
-        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
-        glLineWidth(3.5)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
         # Setup our VBOs and shaders
         self.setup_vbos()
@@ -772,9 +787,9 @@ class MouseScene(object):
             return all_likelihoods
 
 def test_single_mouse():
-    path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Mouse No Median Filter, No Dilation')
-    which_img = 30
-    # which_img = 731
+    path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Blurred Edge')
+    # which_img = 30
+    which_img = 731
     from load_data import load_behavior_data
     image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
     image = image.T[::-1,:].astype('float32')

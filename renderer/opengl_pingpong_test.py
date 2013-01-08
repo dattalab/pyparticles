@@ -12,7 +12,7 @@ Here, we'll be attaching a texture which will receive the pixels.
 - Render the mice into that texture
 
 - Create a viewport that has as many pixels as there are mice
-- For each coordinate
+- For each coordinate, calculate the sum in that arena
 
 """
 
@@ -92,17 +92,6 @@ class TextureTest(object):
         glTexCoord2f(1.0, 0.0)
         glVertex3f(1, -1, -0.5)
 
-        # A quarter-sized quad
-        glColor4f(1.0, 0.0, 0.0, 1.0)
-        glTexCoord2f(0.0, 0.0)
-        glVertex3f(-1, -1, -0.1)
-        glTexCoord2f(0.0, 1.0)
-        glVertex3f(-1, 0, -0.1)
-        glTexCoord2f(1.0, 1.0)
-        glVertex3f(0, 0, -0.1)
-        glTexCoord2f(1.0, 0.0)
-        glVertex3f(0, -1, -0.1)
-
         glEnd()
         glUseProgram(0)
 
@@ -138,7 +127,6 @@ class TextureTest(object):
         glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE)
         glBindTexture(GL_TEXTURE_2D, 0)
 
-
         return t
 
     def setup_fbo(self):
@@ -149,9 +137,8 @@ class TextureTest(object):
         self.setup_textures()
         self.frameBuffer = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
-
+        
         # Attach our first texture to the depth attachment point
-        glBindTexture(GL_TEXTURE_2D, self.textures[0])
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.textures[0], 0)
 
         # Every FBO has to have a color attachment. We don't persist it
@@ -173,7 +160,7 @@ class TextureTest(object):
         y,x = np.mgrid[0:self.height, 0:self.width]
         self.some_data = 0.5*(1.+np.sin(2.*np.pi*y/self.height))* np.sin(np.pi*x/self.width)
         glBindTexture(GL_TEXTURE_2D, self.textures[1])
-        glPixelStoref(GL_UNPACK_ALIGNMENT, 1)
+        # glPixelStoref(GL_UNPACK_ALIGNMENT, 1)
         glTexImage2D(
             GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
             self.width, self.height, 0,
@@ -185,16 +172,13 @@ class TextureTest(object):
 
         vShader = shaders.compileShader("""
             #version 120
-            varying vec4 the_color;
             void main() {
                 gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-                the_color = gl_Color;
             }
             """, GL_VERTEX_SHADER)
 
         fShader = shaders.compileShader("""
             #version 120
-            varying vec4 the_color;
             uniform sampler2D data_texture;
             uniform vec2 viewport_size;
             uniform vec2 data_size;
@@ -233,11 +217,15 @@ class TextureTest(object):
         viewport_size_loc = glGetUniformLocation(self.shaderProgram, "viewport_size")
         glUniform2f(viewport_size_loc, self.viewport_width, self.viewport_height)
 
-
+        # This is the texture that contains data to be reduced
         data_texture_loc = glGetUniformLocation(self.shaderProgram, "data_texture")
-        glActiveTexture(GL_TEXTURE0)
+        glActiveTexture(GL_TEXTURE0+1)
         glBindTexture(GL_TEXTURE_2D, self.textures[1])
-        glUniform1i(data_texture_loc, 0)
+        glUniform1i(data_texture_loc, 1)
+
+        # Clean up
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, 0)
 
         glUseProgram(0)
 
@@ -263,7 +251,7 @@ class TextureTest(object):
 
 
 if __name__ == "__main__":
-    t = TextureTest(300, 300, 15, 15)
+    t = TextureTest(300, 300, 150, 150)
     t.gl_init()
     t.display()
     figure(); imshow(t.data)
