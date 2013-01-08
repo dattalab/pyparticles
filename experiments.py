@@ -34,7 +34,7 @@ class Experiment(object):
             cPickle.dump((particlefilter,pose_model,datapath,frame_range),outfile,protocol=2)
 
         descripfilename = os.path.join(self.cachepath,'description.txt')
-        if not os.path.exists(descripfilename):
+        if not os.path.exists(descripfilename,'w'):
             with open(descripfilename) as outfile:
                 outfile.write(
                         '''
