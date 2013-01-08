@@ -3,11 +3,13 @@ import numpy as np
 na = np.newaxis
 from collections import deque
 import abc
-from warnings import warn
 
 from util.general import ibincount
 
 DEBUG = True
+
+# this is a great reference on techniques:
+# http://www.cs.berkeley.edu/~pabbeel/cs287-fa11/slides/particle-filters++_v2.pdf
 
 class ParticleFilter(object):
     def __init__(self,ndim,cutoff,log_likelihood_fn,initial_particles):
@@ -21,11 +23,11 @@ class ParticleFilter(object):
         self.log_weights = np.zeros(len(initial_particles))
         self.weights_norm = np.ones(len(initial_particles))
 
-        self.Nsurvive_history = []
-        self.Neff_history = []
+        self._Nsurvive_history = []
+        self._Neff_history = []
         self.numsteps = 0
 
-    def step(self,data,resample_method='independent',particle_kwargs={}):
+    def step(self,data,resample_method='lowvariance',particle_kwargs={}):
         for idx, particle in enumerate(self.particles):
             self.locs[idx] = particle.sample_next(**particle_kwargs)
         self.log_weights += self.log_likelihood_fn(self.numsteps,data,self.locs)
@@ -40,13 +42,23 @@ class ParticleFilter(object):
 
         return resampled
 
-    def change_numparticles(self,newnum,resample_method='independent'):
+    def change_numparticles(self,newnum,resample_method='lowvariance'):
         if newnum != len(self.particles):
             self._resample(num=newnum)
 
     def inject_particles(self,particles_to_inject,particle_kwargs={}):
+        # breaks posterior estimation, but good for tracking!
+        self.particles_were_injected = True
+
         self.locs = np.concatenate((self.locs,[p.sample_next(**particle_kwargs) for p in particles_to_inject]))
         self.particles += particles_to_inject
+
+        newnum = len(self.particles)
+        self.weights_norm = np.concatenate((
+                                self.weights_norm*len(self.weights_norm)/newnum,
+                                np.repeat(1./newnum,len(particles_to_inject))
+                            ))
+        self.log_weights = np.log(np.repeat(1./newnum,newnum))
 
     @property
     def _Neff(self):
@@ -54,7 +66,7 @@ class ParticleFilter(object):
         self.weights_norm /= self.weights_norm.sum()
         Neff = 1./np.sum(self.weights_norm**2)
 
-        self.Neff_history.append((self.numsteps,Neff))
+        self._Neff_history.append((self.numsteps,Neff))
 
         if DEBUG:
             print Neff
@@ -73,7 +85,7 @@ class ParticleFilter(object):
         self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
         self.weights_norm = np.repeat(1./num, num)
 
-        self.Nsurvive_history.append((self.numsteps,len(np.unique(sources))))
+        self._Nsurvive_history.append((self.numsteps,len(np.unique(sources))))
 
         if DEBUG:
             print self.Nsurvive_history[-1][1]
@@ -168,3 +180,4 @@ def meantrack(pf):
     for p,w in zip(pf.particles[1:],pf.weights_norm[1:]):
         track += np.array(p.track) * w
     return track
+

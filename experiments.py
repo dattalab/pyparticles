@@ -250,6 +250,81 @@ class RandomWalkLearnedNoise(Experiment):
             print len(np.unique([p.track[1][0] for p in pf.particles]))
             print ''
 
+
+class RandomWalkLearnedNoiseWithInjection(Experiment):
+    def run(self,frame_range):
+        datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
+
+        num_particles_firststep = 1024*50
+        num_particles = 1024*30
+        num_to_inject = 5*1024
+        cutoff = 1024*10
+
+        initial_n_0 = 1000
+        subsequent_n_0 = 16+20
+
+        initial_randomwalk_noisecov = initial_n_0*np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))**2
+        subsequent_randomwalk_noisecov = subsequent_n_0*np.diag((3.,3.,5.,0.5,0.01,0.05,0.05,0.5,) + (5.,)*(2+2*3))**2
+
+        pose_model = pose_models.PoseModel3()
+
+        _build_mousescene(pose_model.scenefilepath)
+        images, xytheta = _load_data(datapath,frame_range)
+
+        pose_model.default_renderer_pose = \
+            pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+        pose_model.default_particle_pose = \
+            pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+
+        def log_likelihood(stepnum,im,poses):
+            return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/3000.
+
+        def set_particles_to_subsequent_params(particles):
+            for p in particles:
+                p.sampler.noisesampler.yyt[:] = 0
+                p.sampler.noisesampler.S_0 = subsequent_randomwalk_noisecov
+                p.sampler.noisesampler.n_n = subsequent_n_0
+
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.AR(
+                    numlags=1,
+                    previous_outputs=(pose_model.default_particle_pose,),
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: \
+                            pd.InverseWishartNoise(initial_n_0,initial_randomwalk_noisecov))
+                    ) for itr in range(num_particles_firststep)])
+
+        pf.step(images[0])
+        pf.change_numparticles(num_particles)
+        set_particles_to_subsequent_params(pf.particles)
+
+        for i in progprint_xrange(1,images.shape[0],perline=10):
+            # save
+            if i % 10 == 0:
+                self.save_progress(pf,pose_model,datapath,frame_range)
+
+            # step
+            pf.step(images[i])
+
+            # inject
+            injected_particles = \
+                [particle_filter.AR(
+                    numlags=1,
+                    previous_outputs=(pose_model.default_particle_pose,),
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: \
+                            pd.InverseWishartNoise(initial_n_0,initial_randomwalk_noisecov)),
+                ) for itr in range(num_to_inject)]
+            pf.inject_particles(injected_particles)
+            pf.change_numparticles(num_particles)
+            set_particles_to_subsequent_params(pf.particles)
+
+            # print
+            print len(np.unique([p.track[1][0] for p in pf.particles]))
+            print ''
+
 # TODO dynamics/momentum experiment
 
 ######################
