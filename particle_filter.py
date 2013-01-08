@@ -6,7 +6,7 @@ import abc, random, warnings
 
 from util.general import ibincount
 
-DEBUG = True
+DEBUG = False
 
 # this is a great reference on techniques:
 # http://www.cs.berkeley.edu/~pabbeel/cs287-fa11/slides/particle-filters++_v2.pdf
