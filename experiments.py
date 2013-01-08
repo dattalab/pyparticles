@@ -15,6 +15,8 @@ from util.text import progprint_xrange
 class Experiment(object):
     __metaclass__ = abc.ABCMeta
 
+    ### must override this
+
     @abc.abstractmethod
     def run(self):
         pass
@@ -24,10 +26,9 @@ class Experiment(object):
     def resume(self):
         raise NotImplementedError
 
-    ### common but could be overridden
+    ### probably shouldn't be overridden
 
     def save_progress(self,particlefilter,frame_range):
-        self._cache_setup()
         outfilename = os.path.join(self.cachepath,str(particlefilter.numsteps))
         with open(outfilename,'w') as outfile:
             cPickle.dump((particlefilter,frame_range),outfile,protocol=2)
@@ -42,25 +43,27 @@ class Experiment(object):
 
     ### don't override this stuff
 
-    def _cache_setup(self):
-        if not hasattr(self,'_cache_is_set_up'):
-            if os.path.exists(self.cachepath):
-                if raw_input('overwrite existing data? ').lower() != 'y':
-                    print 'did nothing'
-                    return
-                else:
-                    shutil.rmtree(self.cachepath)
+    def __init__(self):
+        if os.path.exists(self.cachepath):
+            response = raw_input('cache file exists: [o]verwrite, [r]esume, or do [N]othing? ').lower()
+            if response == 'r':
+                self.resume()
+            elif response == 'o':
+                shutil.rmtree(self.cachepath)
             else:
-                os.makedirs(self.cachepath)
+                print 'did nothing'
+                return
 
-            with open(os.path.join(self.cachepath,'code')) as outfile:
-                outfile.write(inspect.getsource(self.__class__))
+        os.makedirs(self.cachepath)
 
-            self._cache_is_set_up = True
+        with open(os.path.join(self.cachepath,'code'),'w') as outfile:
+            outfile.write(inspect.getsource(self.__class__))
+
+        self.run()
 
     @property
     def cachepath(self):
-        return hash(inspect.getsource(self.__class__))
+        return str(hash(inspect.getsource(self.__class__)))
 
 #################
 #  Experiments  #
@@ -90,11 +93,11 @@ class SideInfoFixedNoise(Experiment):
         pose_model.default_particle_pose = pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2])
 
         def log_likelihood(stepnum,im,poses):
-            return ms.get_likelihood(im,particle_data=self.pose_model.expand_poses(poses),
+            return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
                 x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/500.
 
         pf = particle_filter.ParticleFilter(
-                pose_model.pose_tuple_len,
+                pose_model.particle_pose_tuple_len,
                 cutoff,
                 log_likelihood,
                 [particle_filter.AR(
@@ -148,11 +151,11 @@ class RandomWalkFixedNoise(Experiment):
             pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
 
         def log_likelihood(stepnum,im,poses):
-            return ms.get_likelihood(im,particle_data=self.pose_model.expand_poses(poses),
+            return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
                 x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/500.
 
         pf = particle_filter.ParticleFilter(
-                pose_model.pose_tuple_len,
+                pose_model.particle_pose_tuple_len,
                 cutoff,
                 log_likelihood,
                 [particle_filter.AR(
@@ -182,7 +185,7 @@ def _build_mousescene(scenefilepath):
         ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
                         scale_width = 18.0, scale_height = 200.0,
                         scale_length = 18.0, \
-                        numCols=msNumCols, numRows=msNumRows, useFramebuffer=False,showTiming=False)
+                        numCols=msNumCols, numRows=msNumRows, useFramebuffer=True,showTiming=False)
         ms.gl_init()
     return ms
 
