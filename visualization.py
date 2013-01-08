@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-import Image, cPickle, os
+import Image, cPickle, os, shutil
 
 from renderer.load_data import load_behavior_data
 from renderer.renderer import MouseScene
@@ -48,6 +48,8 @@ def movie(track,pose_model,datapath,frame_range):
 
         I = np.hstack((I_real, I_synth))
 
+        shutil.rmtree(dest_dir)
+        os.makedirs(dest_dir)
         Image.fromarray(I.astype('uint8')).save(os.path.join(dest_dir, "%03d.png" % i))
 
 ######################

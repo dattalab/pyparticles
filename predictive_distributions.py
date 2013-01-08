@@ -75,25 +75,28 @@ class FixedNoise(PredictiveDistribution):
 
 class InverseWishartNoise(PredictiveDistribution):
     def __init__(self,n_0,S_0):
-        self.S_n = S_0.copy()
+        self.S_0 = S_0
         self.n_n = n_0
+
+        self.yyt = np.zeros(S_0.shape)
 
     def _update_hypparams(self,y):
         self.n_n += 1
-        self.S_n += y[:,na] * y
+        self.yyt += y[:,na] * y
 
     def _sample(self):
-        Sigma = sample_invwishart(self.S_n,self.n_n)
+        Sigma = sample_invwishart(self.S_0 + self.yyt,self.n_n)
         return np.linalg.cholesky(Sigma).dot(np.random.randn(Sigma.shape[0]))
 
     def copy(self):
         new = self.__new__(self.__class__)
         new.n_n = self.n_n
-        new.S_n = self.S_n.copy()
+        new.S_0 = self.S_0
+        new.yyt = self.yyt.copy()
         return new
 
     def __str__(self):
-        return '%s(%s)' % (self.__class__.__name__,(self.n_n,self.S_n))
+        return '%s(%s)' % (self.__class__.__name__,(self.n_n,self.S_0 + self.yyt))
 
     def __repr__(self):
         return str(self)
