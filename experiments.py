@@ -320,7 +320,7 @@ class RandomWalkLearnedNoiseWithInjection(Experiment):
                     ) for itr in range(num_particles_firststep)])
 
         # first step is special
-        pf.step(images[0],sideinfo=xytheta[0])
+        pf.step(images[0],particle_kwargs={'sideinfo':xytheta[0]})
 
         # re-calibrate after first step
         pf.change_numparticles(num_particles)
@@ -333,7 +333,7 @@ class RandomWalkLearnedNoiseWithInjection(Experiment):
                 self.save_progress(pf,pose_model,datapath,frame_range)
 
             # step
-            pf.step(images[i],sideinfo=xytheta[i])
+            pf.step(images[i],particle_kwargs={'sideinfo':xytheta[i]})
 
             # print
             print len(np.unique([p.track[1][0] for p in pf.particles]))
