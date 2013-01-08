@@ -38,6 +38,18 @@ class TextureTest(object):
     """docstring for TextureTest"""
     def __init__(self, width, height, viewport_width, viewport_height):
         super(TextureTest, self).__init__()
+
+        def ispow2(num):
+            return num != 0 and ((num & (num - 1)) == 0)
+
+        assert ispow2(width), "Width must be power of two"
+        assert ispow2(height), "Height must be power of two"
+        assert ispow2(viewport_width), "Viewport height must be power of two"
+        assert ispow2(viewport_height), "Viewport height must be power of two"
+
+        assert width == height, "For now, width and height must be the same"
+        assert viewport_width == viewport_height, "Viewport width and height must be the same"
+
         self.width = width
         self.height = height
         self.viewport_width = viewport_width
@@ -65,6 +77,7 @@ class TextureTest(object):
 
         # Bind the framebuffer (we'll draw into that, as opposed to the render buffer)
         glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
+        print "Drawing into texture %d" % 0
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.textures[0], 0)
         glViewport(0,0,self.width, self.height)
         # Get setup to draw
@@ -93,7 +106,7 @@ class TextureTest(object):
         glTexCoord2f(1.0, 0.0)
         glVertex3f(1, 0, 0.0)
 
-        new_width = 1.0/3.0
+        new_width = 0.5 # self.viewport_width / self.width
         glColor4f(1.0, 0.0, 0.0, 1.0)
         glTexCoord2f(0.0, 0.0)
         glVertex3f(new_width, new_width, 1.0)
@@ -111,59 +124,66 @@ class TextureTest(object):
 
         self.orig_data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
 
-        # Clean up after ourselves
         
-        # Now switch where we draw
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.textures[1], 0)
-        glViewport(0,0,self.viewport_width, self.viewport_height)
-        # Get setup to draw
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        
+        
+        # PING-PONG REDUCTION
+        this_width = int(self.width)
+        this_height = int(self.height)
+        for i in range(int(np.log2(self.width/self.viewport_width))):
+            source_tex_id = mod(i,2)
+            dest_tex_id = 1 - source_tex_id
 
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.textures[dest_tex_id], 0)
 
+            print "Reducing %d^2 (tex:%d) to %d^2 (tex:%d)" % (this_width, source_tex_id, this_width/2, dest_tex_id)
+            glViewport(0,0, int(this_width/2), int(this_height/2))
+            # Get setup to draw
+            glClear(GL_DEPTH_BUFFER_BIT)
 
-        # Bind the shader
-        glUseProgram(self.reductionShaderProgram)
+            # Bind the shader
+            glUseProgram(self.reductionShaderProgram)
 
-        # Texture stuff!
-        data_size_loc = glGetUniformLocation(self.reductionShaderProgram, "data_size")
-        glUniform2f(data_size_loc, self.width, self.height)
-        viewport_size_loc = glGetUniformLocation(self.reductionShaderProgram, "viewport_size")
-        glUniform2f(viewport_size_loc, self.viewport_width, self.viewport_height)
+            # Texture stuff!
+            data_size_loc = glGetUniformLocation(self.reductionShaderProgram, "data_size")
+            glUniform2f(data_size_loc, this_width, this_height)
+            viewport_size_loc = glGetUniformLocation(self.reductionShaderProgram, "viewport_size")
+            glUniform2f(viewport_size_loc, int(this_width/2), int(this_height/2))
 
-        # This is the texture that contains data to be reduced
-        data_texture_loc = glGetUniformLocation(self.reductionShaderProgram, "data_texture")
-        glActiveTexture(GL_TEXTURE0+1)
-        glBindTexture(GL_TEXTURE_2D, self.textures[0])
-        glUniform1i(data_texture_loc, 1)
+            # This is the texture that contains data to be reduced
+            data_texture_loc = glGetUniformLocation(self.reductionShaderProgram, "data_texture")
+            glActiveTexture(GL_TEXTURE0+1)
+            glBindTexture(GL_TEXTURE_2D, self.textures[source_tex_id])
+            glUniform1i(data_texture_loc, 1)
+            glActiveTexture(GL_TEXTURE0)
+            glBindTexture(GL_TEXTURE_2D, 0)
 
-        # Clean up
-        glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D, 0)
+            # Just draw a square
+            glBegin(GL_QUADS)
+            glColor4f(0.0, 1.0, 0.0, 1.0)
+            glTexCoord2f(0.0, 0.0)
+            glVertex3f(0, 0, 0.0)
+            glTexCoord2f(0.0, 1.0)
+            glVertex3f(0, 1, 0.0)
+            glTexCoord2f(1.0, 1.0)
+            glVertex3f(1, 1, 0.0)
+            glTexCoord2f(1.0, 0.0)
+            glVertex3f(1, 0, 0.0)
+            glEnd()
 
-        # Just draw a square
-        glBegin(GL_QUADS)
+            glUseProgram(0)
 
-        # One big quad
-        glColor4f(0.0, 1.0, 0.0, 1.0)
-        glTexCoord2f(0.0, 0.0)
-        glVertex3f(0, 0, 0.0)
-        glTexCoord2f(0.0, 1.0)
-        glVertex3f(0, 1, 0.0)
-        glTexCoord2f(1.0, 1.0)
-        glVertex3f(1, 1, 0.0)
-        glTexCoord2f(1.0, 0.0)
-        glVertex3f(1, 0, 0.0)
-
-
-        glEnd()
-        glUseProgram(0)
+            this_width /= 2
+            this_height /= 2
 
         # Okay, we've drawn a great square into a texture, 
         # and its depth values have been handled by the shader
         # Now, it's time to try some reductions. 
 
         # Read off the pixels
-        self.reduced_data = glReadPixels(0,0,self.viewport_width,self.viewport_height, GL_DEPTH_COMPONENT, GL_FLOAT)
+        print "Final reduction to %d^2" % this_width
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.textures[source_tex_id], 0)
+        self.reduced_data = glReadPixels(0,0,this_width,this_height, GL_DEPTH_COMPONENT, GL_FLOAT)
 
         # Clean up after ourselves
         
@@ -182,11 +202,11 @@ class TextureTest(object):
         )
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
-        # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
-        # glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        # glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        # glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE)
         glBindTexture(GL_TEXTURE_2D, 0)
 
         return t
@@ -249,8 +269,8 @@ class TextureTest(object):
 
                 // First, figure out the range of values we'll need to snag
                 vec2 scale = data_size / viewport_size;
-                vec2 ll = (gl_FragCoord.xy) * scale;
-                vec2 ur = (gl_FragCoord.xy+1) * scale;
+                vec2 ll = (floor(gl_FragCoord.xy)) * scale;
+                vec2 ur = (floor(gl_FragCoord.xy)+1) * scale;
 
                 ivec2 ll_pixel = ivec2(ll);
                 ivec2 ur_pixel = ivec2(ur);
@@ -265,7 +285,7 @@ class TextureTest(object):
                     float x = i/data_size.x;
                     for (int j=ll_pixel.y; j < ur_pixel.y; ++j) {
                         float y = j/data_size.y;
-                        float this_depth = 1.0 - 2.0*texture2D(data_texture, vec2(x,y)).r;
+                        float this_depth = texture2D(data_texture, vec2(x,y)).r;
                         target_depth += this_depth/num_pixels;
                     }
                 }
@@ -314,30 +334,27 @@ class TextureTest(object):
         self.setup_reduction_shader()
         self.setup_render_shader()
 
-
-
-
 if __name__ == "__main__":
-    a = 30
-    b = 9
+    a = 32*16
+    b = 32
     t = TextureTest(a,a,b,b)
     t.gl_init()
     t.display()
     figure(figsize=(12,6)); 
     subplot(1,2,1)
     title("Original data")
-    t.orig_data = (1.0 - t.orig_data)
+    # t.orig_data = (1.0 - t.orig_data)
     imshow(t.orig_data, origin='lowerleft')
-    xticks(range(a))
-    yticks(range(a))
+    # xticks(range(a))
+    # yticks(range(a))
     colorbar()
     subplot(1,2,2)
     title("Reduced data")
     scale = (t.width/t.viewport_width)*(t.height/t.viewport_height)
-    print scale
+    # print scale
     imshow(t.reduced_data, origin='lowerleft')
     colorbar()
-    xticks(range(b))
-    yticks(range(b))
+    # xticks(range(b))
+    # yticks(range(b))
 
     # glutMainLoop()
