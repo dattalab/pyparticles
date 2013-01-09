@@ -11,6 +11,7 @@ import particle_filter
 import predictive_models as pm
 import predictive_distributions as pd
 from util.text import progprint_xrange
+from util.general import joindicts
 
 class Experiment(object):
     __metaclass__ = abc.ABCMeta
@@ -28,10 +29,17 @@ class Experiment(object):
 
     ### probably shouldn't be overridden
 
-    def save_progress(self,particlefilter,pose_model,datapath,frame_range):
+    def save_progress(self,particlefilter,pose_model,datapath,frame_range,**kwargs):
+        dct = joindicts(({
+            'particlefilter':particlefilter,
+            'pose_model':pose_model,
+            'datapath':datapath,
+            'frame_range':frame_range,
+            },kwargs))
+
         outfilename = os.path.join(self.cachepath,str(particlefilter.numsteps))
         with open(outfilename,'w') as outfile:
-            cPickle.dump((particlefilter,pose_model,datapath,frame_range),outfile,protocol=2)
+            cPickle.dump(dct,outfile,protocol=2)
 
         descripfilename = os.path.join(self.cachepath,'description.txt')
         if not os.path.exists(descripfilename):
@@ -88,6 +96,8 @@ class Experiment(object):
 #################
 #  Experiments  #
 #################
+
+### Decent ones
 
 class SideInfoFixedNoise(Experiment):
     def run(self,frame_range):
@@ -158,7 +168,7 @@ class RandomWalkFixedNoise(Experiment):
         cutoff = 1024*15
 
         randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
-        subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
+        subsequent_randomwalk_noisechol = np.diag((2.,2.,3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
 
         pose_model = pose_models.PoseModel3()
 
@@ -196,6 +206,71 @@ class RandomWalkFixedNoise(Experiment):
             print len(np.unique([p.track[1][0] for p in pf.particles]))
             print ''
 
+class RandomWalkFixedNoiseFrozenTrack(Experiment):
+    # should look a lot like RandomWalkFixedNoise
+    def run(self,frame_range):
+        datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+
+        # num_particles_firststep = 1024*50
+        # num_particles = 1024*30
+        # cutoff = 1024*15
+
+        # TODO put these back!
+        num_particles_firststep = 1024*10
+        num_particles = 1024*5
+        cutoff = 1024*5
+
+        randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
+        subsequent_randomwalk_noisechol = np.diag((2.,2.,3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
+
+        pose_model = pose_models.PoseModel3()
+
+        _build_mousescene(pose_model.scenefilepath)
+        images, xytheta = _load_data(datapath,frame_range)
+
+        pose_model.default_renderer_pose = \
+            pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+        pose_model.default_particle_pose = \
+            pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+
+        def log_likelihood(stepnum,im,poses):
+            return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/1000.
+
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.AR(
+                    numlags=1,
+                    previous_outputs=(pose_model.default_particle_pose,),
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
+                    ) for itr in range(num_particles_firststep)])
+
+        pf.step(images[0])
+        pf.change_numparticles(num_particles)
+        randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
+
+        for i in progprint_xrange(1,10):
+            pf.step(images[i])
+        self.save_progress(pf,pose_model,datapath,frame_range,means=[])
+
+        # now step with freezing means
+        means = []
+        for i in progprint_xrange(10,images.shape[0],perline=10):
+            means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-10] for p in pf.particles]),axis=0))
+            print '\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-10,np.unique([p.track[i-10][0] for p in pf.particles]))
+
+            pf.step(images[i])
+
+            if (i % 10) == 0:
+                self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+
+        self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+
+
+### currently busted
 
 class RandomWalkWithInjection(Experiment):
     def run(self,frame_range):
@@ -324,6 +399,9 @@ class RandomWalkLearnedNoise(Experiment):
 
             print len(np.unique([p.track[1][0] for p in pf.particles]))
             print ''
+
+
+
 
 
 class Smarticles(Experiment):
