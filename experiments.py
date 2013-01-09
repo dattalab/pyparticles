@@ -30,12 +30,15 @@ class Experiment(object):
     ### probably shouldn't be overridden
 
     def save_progress(self,particlefilter,pose_model,datapath,frame_range,**kwargs):
-        dct = joindicts(({
-            'particlefilter':particlefilter,
-            'pose_model':pose_model,
-            'datapath':datapath,
-            'frame_range':frame_range,
-            },kwargs))
+        dct = joindicts((
+                {
+                'particlefilter':particlefilter,
+                'pose_model':pose_model,
+                'datapath':datapath,
+                'frame_range':frame_range,
+                },
+                kwargs
+            ))
 
         outfilename = os.path.join(self.cachepath,str(particlefilter.numsteps))
         with open(outfilename,'w') as outfile:
@@ -211,12 +214,12 @@ class RandomWalkFixedNoiseFrozenTrack(Experiment):
     def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
-        num_particles_firststep = 1024*50
-        num_particles = 1024*30
-        cutoff = 1024*15
+        num_particles_firststep = 1024*80
+        num_particles = 1024*50
+        cutoff = 1024*25
 
         randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
-        subsequent_randomwalk_noisechol = np.diag((2.,2.,3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
+        subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,2.,0.01,0.2,0.2,1.0,) + (5.,)*(2+2*3))
 
         pose_model = pose_models.PoseModel3()
 
@@ -230,7 +233,7 @@ class RandomWalkFixedNoiseFrozenTrack(Experiment):
 
         def log_likelihood(stepnum,im,poses):
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
-                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/1000.
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/2000.
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
