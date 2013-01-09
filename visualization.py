@@ -27,8 +27,8 @@ def frozentrack_movie(pf_file):
             means = it['means']
 
     track = np.array(means)
-    return movie_sidebyside(track,pose_model,datapath,frame_range)
-    # return movie(track,pose_model,datapath,frame_range)
+    # return movie_sidebyside(track,pose_model,datapath,frame_range)
+    return movie(track,pose_model,datapath,frame_range)
 
 def meantrack_movie(pf_file):
     with open(pf_file,'r') as infile:
