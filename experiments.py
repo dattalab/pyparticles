@@ -333,7 +333,7 @@ class Smarticles(Experiment):
     def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
 
-        num_particles = 1024*50
+        num_particles = 1024*20
         cutoff = 1024*10
 
         MNIWARparams = (
