@@ -20,12 +20,15 @@ def meantrack_movie(pf_file):
 def movie(track,pose_model,datapath,frame_range):
     images, xytheta = _load_data(datapath,(frame_range[0],frame_range[0]+track.shape[0]-1))
 
+    track2 = track.copy()
+    track2[:,:2] = 0
+
     ms = _build_mousescene(pose_model.scenefilepath)
     posed_mice = ms.get_likelihood(
             np.zeros(images[0].shape),
-            particle_data=pose_model.expand_poses(track),
-            x=xytheta[:,0],
-            y=xytheta[:,1],
+            particle_data=pose_model.expand_poses(track2),
+            x=0,
+            y=0,
             theta=xytheta[:,2],
             return_posed_mice=True)[1]
 
