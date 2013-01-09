@@ -136,7 +136,7 @@ class MouseScene(object):
         if image.shape != (self.mouse_height, self.mouse_width):
             I = Image.fromarray(self.mouse_img)
             self.mouse_img = np.array(I.resize((self.mouse_width, self.mouse_height)), dtype='float32')
-        # self.mouse_img = self.mouse_img/self.get_clipZ()
+        self.mouse_img = self.mouse_img/self.get_clipZ()
 
         width,height = self.mouse_img.shape
         img_for_texture = self.mouse_img[:,:].ravel()
@@ -1029,8 +1029,8 @@ def test_palette():
 
 def test_single_mouse():
     path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Blurred Edge')
-    which_img = 35
-    # which_img = 731
+    # which_img = 35
+    which_img = 731
     from load_data import load_behavior_data
     image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
     image = image.T[::-1,:].astype('float32')
