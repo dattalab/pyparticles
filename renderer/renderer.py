@@ -413,6 +413,9 @@ class MouseScene(object):
         # Turn off the shader. We're done. 
         glUseProgram(0)
         
+        # For Debuggin!
+        # self.diff_data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
+
         # REDUCTION TO LIKELIHOODS
         # ================================================================================
         # ================================================================================        
@@ -486,6 +489,8 @@ class MouseScene(object):
             # data = self.original_data
             # data = data.ravel().reshape((self.height, self.width, 1))[:,:,0]
             self.data = self.get_clipZ()*(1-self.data)
+            this_diff = np.abs(np.tile(self.mouse_img*self.get_clipZ(), (self.numRows, self.numCols)) - self.data)
+            likelihood = np.zeros((self.numRows, self.numCols), dtype='float32')
             posed_mice = np.zeros((self.numRows*numCols, self.mouse_height, self.mouse_width), dtype='float32')
             for i in range(self.numRows):
                 startr = i*self.mouse_height
@@ -494,8 +499,10 @@ class MouseScene(object):
                     startc = j*self.mouse_width
                     endc = startc+self.mouse_width
                     posed_mice[i*self.numRows+j] = self.data[startr:endr,startc:endc]
+                    likelihood[i,j] = -this_diff[startr:endr,startc:endc].sum()
                     
             self.posed_mice = posed_mice
+            # self.old_likelihood = likelihood
 
         # If we are using a framebuffer, we'll finally unbind it.
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
@@ -731,6 +738,7 @@ class MouseScene(object):
                 float source_depth = texture2D(source_texture, source_coord).r;
                 float mouse_depth = texture2D(mouse_texture, mouse_coord).r;
                 gl_FragDepth = abs(1.0 - source_depth - mouse_depth);
+                // gl_FragDepth = source_depth;
             }
             """, GL_FRAGMENT_SHADER)
 
@@ -1033,8 +1041,8 @@ def test_palette():
 
 def test_single_mouse():
     path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Blurred Edge')
-    # which_img = 35
-    which_img = 731
+    which_img = 35
+    # which_img = 731
     from load_data import load_behavior_data
     image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
     image = image.T[::-1,:].astype('float32')
@@ -1089,12 +1097,14 @@ def test_single_mouse():
     particle_data[1:,9+6::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones-2))
     particle_data[1:,10::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
 
+    np.save("random_particles.npy", particle_data)
+    particle_data = np.load("random_particles.npy")
 
-    likelihoods = ms.get_likelihood(image, \
+    likelihoods, posed_mice = ms.get_likelihood(image, \
                         x=position_val, y=position_val, \
                         theta=theta_val, \
                         particle_data=particle_data,
-                        return_posed_mice=False)
+                        return_posed_mice=True)
 
 
     # L = ms.likelihood.T.ravel()
@@ -1141,10 +1151,14 @@ def test_single_mouse():
 
 if __name__ == '__main__':
     
-        # ms, rotation_diffs, likelihoods, particle_data, posed_mice = test_single_mouse()
-        ms = test_palette()
+        ms, rotation_diffs, likelihoods, particle_data, posed_mice = test_single_mouse()
+        # ms = test_palette()
         plt.show()
 
+        # close('all')
         # import Image
-        # big_likelihood = -np.array(Image.fromarray(-ms.likelihood).resize(ms.diff_data.shape))
-        # imshow(ms.diff_data-ms.get_clipZ()*0.1*big_likelihood)
+        # big_likelihood = -np.array(Image.fromarray(-ms.likelihood).resize(ms.data.shape))
+        # show_me = (ms.diff_data.copy())*ms.get_clipZ()
+        # idx = show_me == 0
+        # show_me[idx] += 30.0*np.abs(ms.get_clipZ()*big_likelihood[idx])
+        # imshow(show_me)
