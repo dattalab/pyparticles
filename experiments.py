@@ -211,14 +211,9 @@ class RandomWalkFixedNoiseFrozenTrack(Experiment):
     def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
-        # num_particles_firststep = 1024*50
-        # num_particles = 1024*30
-        # cutoff = 1024*15
-
-        # TODO put these back!
-        num_particles_firststep = 1024*10
-        num_particles = 1024*5
-        cutoff = 1024*5
+        num_particles_firststep = 1024*50
+        num_particles = 1024*30
+        cutoff = 1024*15
 
         randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
         subsequent_randomwalk_noisechol = np.diag((2.,2.,3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
