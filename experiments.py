@@ -391,7 +391,7 @@ class Smarticles(Experiment):
         MNIWARparams = (dof,S,M,K)
 
         with open('mniwarparams','w') as outfile:
-            cPickle.dump(MNIWARparams,outfile,protocol=2)
+            cPickle.dump((MNIWARparams,pf),outfile,protocol=2)
 
         return
 
