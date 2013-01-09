@@ -26,8 +26,8 @@ class MouseScene(object):
     def __init__(self, scenefile, \
                         scale_width = 4.0, scale_height = 4.0, scale_length = 4.0, \
                         mouse_width=640, mouse_height=480, \
-                        numCols=32, numRows=32, useFramebuffer=False, \
-                        debug=False, showTiming=True):
+                        numCols=32, numRows=32, \
+                        showTiming=True):
 
         """For a given scenefile (the output of 
             get_poly_and_skin_info_maya.py), 
@@ -39,8 +39,8 @@ class MouseScene(object):
         self.numCols = numCols
         self.numRows = numRows
         self.num_mice = self.numCols * self.numRows
-        self.debug = debug
         self.showTiming = showTiming
+        self.pull_down_pixels = False
 
         self.width = self.mouse_width*numCols
         self.height = self.mouse_height*numRows
@@ -61,7 +61,6 @@ class MouseScene(object):
             self.scale_length = scale_length
             assert len(self.scale_length) == self.num_mice, "Must have a scale value per mouse"
 
-        self.useFramebuffer = useFramebuffer
 
         self.scenefile = scenefile
         
@@ -129,6 +128,22 @@ class MouseScene(object):
         for i in range(self.num_mice):
             for j in range(self.num_bones):
                 self.rotations[i,j,:] = new_rotations[i,j,:]
+
+
+    def set_mouse_image(self, image):
+        import Image
+        self.mouse_img = image.astype('float32')
+        if image.shape != (self.mouse_height, self.mouse_width):
+            I = Image.fromarray(self.mouse_img)
+            self.mouse_img = np.array(I.resize((self.mouse_width, self.mouse_height)), dtype='float32')
+        # self.mouse_img = self.mouse_img/self.get_clipZ()
+
+        width,height = self.mouse_img.shape
+        img_for_texture = self.mouse_img[:,:].ravel()
+
+        glBindTexture(GL_TEXTURE_2D, self.mouseTexture)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, img_for_texture)
+        glBindTexture(GL_TEXTURE_2D, 0)
 
 
     def maprange(self, val, source_range=(-100, 500), dest_range=(-5,5), clip=True):
@@ -235,12 +250,14 @@ class MouseScene(object):
             print "Avg: %0.2f Hz (current: %0.2f Hz)" % (self.avgrate, this_rate)
             self.lasttime = thistime
 
-        if self.useFramebuffer:
-            glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
+        
+        glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.frameBufferTextures[0], 0)
 
         # Drawing preparation (view angle adjustment, mostly)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         
+
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
 
@@ -257,30 +274,20 @@ class MouseScene(object):
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
 
-        # Experimental texture drawing code
-        # ==============================
-        
-
-
-
         # Now, rotate to draw the mouse model
         ## Top-down projection
-
-
-        # ## Skew to the side (if you want to view spine movement)
-        # if self.lastkey == 'r':
-        #   glRotate(90, 1., 0., 0.)
-        #   glRotate(90, 0., 1., 0.)
 
         # Bind our VBOs     
         self.mesh_vbo.bind()
         self.index_vbo.bind()
 
+
         # Turn on our shaders
         glUseProgram(self.shaderProgram)
-
-        # Draw the poly mesh
-        # ==============================
+        
+        # MOUSE RENDERING
+        # ================================================================================
+        # ================================================================================
 
         # Let OpenGL know where we're keeping our
         # vertices, joint weights and joint indices
@@ -303,19 +310,12 @@ class MouseScene(object):
         theta_yaw = self.offset_theta_yaw
         theta_roll = self.offset_theta_roll
 
-        # If we're displaying to the screen, we're debugging,
-        # which means we'd like to see a bunch of random poses.
-        if not self.useFramebuffer:
-            old_rotations = np.copy(self.rotations)
-            # self.rotations[:,1:,1:] += np.random.normal(scale=20,
-                                                # size=(self.num_mice, self.num_bones-1, 2))
 
         # Okay, this is where the drawing actually happens.
         # For now, we're drawing each mouse separately.
         # This is expensive and stupid, but instanced drawing
         # is a bit off.
         # TODO: implement instanced drawing.
-        
 
         for i in range(numCols*numRows):
 
@@ -332,7 +332,7 @@ class MouseScene(object):
             glUniform1f(self.scale_height_location, self.scale_height[i])
             glUniform1f(self.theta_yaw_location, -theta_yaw[i])
             glUniform1f(self.theta_roll_location, -theta_roll[i])
-            glUniform2fv(self.height_range_location, 1, (0.0, 10.0))
+            glUniform2fv(self.height_range_location, 1, (0.0, 1.0))
             glUniform3fv(self.rotation_location, self.num_bones, self.rotations[i])
             
             # Rotate the mouse, and draw the mouse
@@ -354,51 +354,147 @@ class MouseScene(object):
         # Turn off our shaders
         glUseProgram(0)
 
-        if not self.useFramebuffer:
-            glutSwapBuffers()
-            self.rotations = np.copy(old_rotations)
-        # ==============================
+        if self.pull_down_pixels:
+            self.data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
+
+        # REAL DATA SUBTRACTION
+        # ================================================================================
+        # ================================================================================
+        # Draw into our second framebuffer texture
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.frameBufferTextures[1], 0)
+        glViewport(0,0,self.width, self.height)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        # Turn on our subtraction shader
+        glUseProgram(self.subtractionShaderProgram)
+
+        # Draw from the texture we just drew into
+        source_texture_loc = glGetUniformLocation(self.subtractionShaderProgram, "source_texture")
+        glActiveTexture(GL_TEXTURE0+1)
+        glBindTexture(GL_TEXTURE_2D, self.frameBufferTextures[0])
+        glUniform1i(source_texture_loc, 1)
+        # The source image size
+        source_size_loc = glGetUniformLocation(self.subtractionShaderProgram, "source_size")
+        glUniform2f(source_size_loc, self.width, self.height)
+
+        # We'll be subtracting the mouse texture from the previous image
+        mouse_texture_loc = glGetUniformLocation(self.subtractionShaderProgram, "mouse_texture")
+        glActiveTexture(GL_TEXTURE0+2)
+        glBindTexture(GL_TEXTURE_2D, self.mouseTexture)
+        glUniform1i(mouse_texture_loc, 2)
+        # The mouse's texture size is important as well.
+        mouse_size_loc = glGetUniformLocation(self.subtractionShaderProgram, "mouse_size")
+        glUniform2f(mouse_size_loc, self.mouse_width, self.mouse_height)
+
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, 0)
+
+        # Load up a fresh perspective
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        glOrtho(0, 1, 0, 1, -1, self.get_clipZ())
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
 
 
+        # Just draw a square. That's our palette to render into.
+        glBegin(GL_QUADS)
+        glColor4f(0.0, 1.0, 0.0, 1.0)
+        glTexCoord2f(0.0, 0.0)
+        glVertex3f(xmin, ymin, 0)
+        glTexCoord2f(0.0, 1.0)
+        glVertex3f(xmin, ymax, 0)
+        glTexCoord2f(1.0, 1.0)
+        glVertex3f(xmax, ymax, 0)
+        glTexCoord2f(1.0, 0.0)
+        glVertex3f(xmax, ymin, 0)
+        glEnd()
 
-        # For now, this is how we get mice data
-        # off of the GPU. Just grab the raw pixel data back from the GPU,
-        # and do our likelihood computations locally.
-        # The speedups to be gained here by moving it to the GPU 
-        # aren't super huge, as far as I'm aware.
-        data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
-        # data = data.ravel().reshape((self.height, self.width, 1))[:,:,0]
-        data = data.ravel().reshape((self.height, self.width))
-        data = self.get_clipZ()*(1-data)
-        this_diff = np.abs(np.tile(self.mouse_img, (self.numRows, self.numCols)) - data)
-        likelihood = np.zeros((self.numRows, self.numCols), dtype='float32')
-        posed_mice = np.zeros((self.numRows*numCols, self.mouse_height, self.mouse_width), dtype='float32')
-        for i in range(self.numRows):
-            startr = i*self.mouse_height
-            endr = startr+self.mouse_height
-            for j in range(self.numCols):
-                startc = j*self.mouse_width
-                endc = startc+self.mouse_width
-                likelihood[i,j] = -this_diff[startr:endr,startc:endc].sum()
-                posed_mice[i*self.numRows+j] = data[startr:endr,startc:endc]
-                
-        self.posed_mice = posed_mice
-        self.data = data
-        self.likelihood = likelihood
-        self.diffmap = this_diff
+        # Turn off the shader. We're done. 
+        glUseProgram(0)
+        
+        self.diff_data = glReadPixels(0,0,self.width,self.height,GL_DEPTH_COMPONENT,GL_FLOAT)
+        # REDUCTION TO LIKELIHOODS
+        # ================================================================================
+        # ================================================================================        
+        
+        # Now, swap out the textures backing the depth attachment of the framebuffer
+        output_size = [self.numCols, self.numRows]
 
-        # If we'd like to write the frames to disk, go ahead.
-        if self.debug:
-            np.savez("data/frame%d.npz"%self.iframe, \
-                            frame=data, \
-                            diffmap=this_diff, \
-                            likelihood = likelihood,
-                            mouse_img = self.mouse_img)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.frameBufferTextures[0], 0)
+        glViewport(0,0,output_size[0], output_size[1])
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
+        xmin = 0
+        xmax = 1
+        ymin = 0
+        ymax = 1
+        znear = -1
+        zfar = 1
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        glOrtho(xmin, xmax, ymin, ymax, znear, zfar)
+
+
+        # Prepare to draw the poly mesh
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+
+        glUseProgram(self.reductionShaderProgram)
+
+        source_size_loc = glGetUniformLocation(self.reductionShaderProgram, "source_size")
+        glUniform2f(source_size_loc, self.width, self.height)
+        dest_size_loc = glGetUniformLocation(self.reductionShaderProgram, "dest_size")
+        glUniform2f(dest_size_loc, output_size[0], output_size[1])
+
+        source_texture_loc = glGetUniformLocation(self.reductionShaderProgram, "source_texture")
+        glActiveTexture(GL_TEXTURE0+1)
+        glBindTexture(GL_TEXTURE_2D, self.frameBufferTextures[1])
+        glUniform1i(source_texture_loc, 1)
+
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, 0)
+
+        # Just draw a square
+        glBegin(GL_QUADS)
+        # One big quad
+        glColor4f(0.0, 1.0, 0.0, 1.0)
+        glTexCoord2f(0.0, 0.0)
+        glVertex3f(xmin, ymin, 0)
+        glTexCoord2f(0.0, 1.0)
+        glVertex3f(xmin, ymax, 0)
+        glTexCoord2f(1.0, 1.0)
+        glVertex3f(xmax, ymax, 1)
+        glTexCoord2f(1.0, 0.0)
+        glVertex3f(xmax, ymin, 1)
+        glEnd()
+
+        glUseProgram(0)
+        
+        self.likelihood = glReadPixels(0,0,output_size[0], output_size[1], GL_DEPTH_COMPONENT, GL_FLOAT)
+        self.likelihood = -self.likelihood
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        
+
+        # ================================================================================
+        if self.pull_down_pixels:
+            
+            # data = self.original_data
+            # data = data.ravel().reshape((self.height, self.width, 1))[:,:,0]
+            self.data = self.get_clipZ()*(1-self.data)
+            posed_mice = np.zeros((self.numRows*numCols, self.mouse_height, self.mouse_width), dtype='float32')
+            for i in range(self.numRows):
+                startr = i*self.mouse_height
+                endr = startr+self.mouse_height
+                for j in range(self.numCols):
+                    startc = j*self.mouse_width
+                    endc = startc+self.mouse_width
+                    posed_mice[i*self.numRows+j] = self.data[startr:endr,startc:endc]
+                    
+            self.posed_mice = posed_mice
 
         # If we are using a framebuffer, we'll finally unbind it.
-        if self.useFramebuffer:
-            glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 
     def setup_shaders(self):
@@ -561,10 +657,22 @@ class MouseScene(object):
         
         fragmentShader = shaders.compileShader("""
         #version 120
+        #extension GL_ARB_texture_rectangle : enable 
+        #extension GL_ARB_draw_buffers : enable 
         varying vec4 vertex_color;
-
+        uniform sampler2D mouse_tex;
+        uniform vec2 mouse_img_size;
         void main() {
             gl_FragColor = vertex_color;
+            float z = gl_FragCoord.z;
+
+            vec2 position = gl_FragCoord.xy / mouse_img_size.xy;
+            vec4 texvec = texture2D(mouse_tex, position);
+            float diff = abs(texvec.r - z);
+            gl_FragColor.rgb = vec3(diff);
+
+            gl_FragDepth = gl_FragCoord.z;
+            gl_FragDepth = diff;
         }
 
         """, GL_FRAGMENT_SHADER)
@@ -577,7 +685,8 @@ class MouseScene(object):
                             'offsetx', 'offsety', 'offsetz', \
                             'theta_yaw', 'theta_roll', \
                             'height_range',\
-                            'rotation', 'translation', 'bindingMatrixInverse']:
+                            'rotation', 'translation', 'bindingMatrixInverse',
+                            'mouse_tex', 'mouse_img_size']:
             location = glGetUniformLocation(self.shaderProgram, uniform)
             name = uniform+"_location"
             setattr(self, uniform+"_location", location)
@@ -597,36 +706,136 @@ class MouseScene(object):
         glUniform3fv(self.translation_location, self.num_bones, translations)
         glUseProgram(0)
 
+    def setup_subtraction_shader(self):
+        vShader = shaders.compileShader("""
+            #version 120
+            void main() {
+                gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+            }
+            """, GL_VERTEX_SHADER)
+
+        fShader = shaders.compileShader("""
+            #version 120
+            uniform sampler2D source_texture;
+            uniform sampler2D mouse_texture;
+            uniform vec2 source_size;
+            uniform vec2 mouse_size;
+
+            void main() {
+                vec2 source_coord = gl_FragCoord.xy / source_size;
+                vec2 mouse_coord = gl_FragCoord.xy / mouse_size;
+                float source_depth = texture2D(source_texture, source_coord).r;
+                float mouse_depth = texture2D(mouse_texture, mouse_coord).r;
+                gl_FragDepth = abs(1.0 - source_depth - mouse_depth);
+            }
+            """, GL_FRAGMENT_SHADER)
+
+        self.subtractionShaderProgram = shaders.compileProgram(vShader, fShader)
+
+    def setup_reduction_shader(self):
+        vShader = shaders.compileShader("""
+            #version 120
+            void main() {
+                gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+            }
+            """, GL_VERTEX_SHADER)
+
+        fShader = shaders.compileShader("""
+            #version 120
+            uniform sampler2D source_texture;
+            uniform sampler2D mouse_texture;
+            uniform vec2 dest_size;
+            uniform vec2 source_size;
+            uniform float bias;
+            
+            void main() {
+
+                // First, figure out the range of values we'll need to snag
+                vec2 scale = source_size / dest_size;
+
+                vec2 ll = (floor(gl_FragCoord.xy)) * scale;
+                vec2 ur = (floor(gl_FragCoord.xy)+1) * scale;
+
+                ivec2 ll_pixel = ivec2(ll);
+                ivec2 ur_pixel = ivec2(ur);
+                
+                int width = int(scale.x);
+                int height = int(scale.y);
+                float num_pixels = width*height;
+
+                float target_depth = 0.0;
+                for (int i=ll_pixel.x; i < ur_pixel.x; ++i) {
+                    float x = i/source_size.x;
+                    for (int j=ll_pixel.y; j < ur_pixel.y; ++j) {
+                        float y = j/source_size.y;
+                        float this_depth = texture2D(source_texture, vec2(x,y)).r;
+                        target_depth += this_depth/num_pixels;
+                    }
+                }
+                gl_FragDepth = target_depth;
+
+            }
+            """, GL_FRAGMENT_SHADER)
+
+
+
+        self.reductionShaderProgram = shaders.compileProgram(vShader, fShader)
+
+        glUseProgram(0)
 
     def setup_texture(self):
         import Image
+        # from load_data import load_behavior_data
+        # image = load_behavior_data("../Test Data", 35+1, 'images')[-1]
+        # self.mouse_img = image.T[::-1,:].astype('float32')/self.get_clipZ()
+        self.mouse_img = np.zeros((self.mouse_width, self.mouse_height), dtype='float32')        
 
-        f = np.load(os.path.join(os.path.dirname(__file__),"data/meanmouse.npz"))
-        self.mouse_img = f['mouse_img'].astype('float32')
-        I = Image.fromarray(self.mouse_img)
-        self.mouse_img = np.array(I.resize((self.mouse_width, self.mouse_height)))
         width,height = self.mouse_img.shape
-        img_for_texture = self.mouse_img[:,:].ravel()
-        img_for_texture = np.repeat(img_for_texture, 3)
 
-        self.texture_id = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, self.texture_id)
-        glPixelStoref(GL_UNPACK_ALIGNMENT, 1)
-        glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGB, GL_FLOAT, img_for_texture)
+        self.mouseTexture = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, self.mouseTexture)
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, None)
+        glBindTexture(GL_TEXTURE_2D, 0)
 
     def setup_fbo(self):
+
+        # Make a framebuffer and bind it
         self.frameBuffer = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, self.frameBuffer)
-        self.renderBuffer = glGenRenderbuffers(1)
-        glBindRenderbuffer(GL_RENDERBUFFER, self.renderBuffer)
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32, self.width, self.height)
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.renderBuffer)
 
+        # Setup two textures that will accept all drawn pixels
+        self.frameBufferTextures = []
+        for i in range(2):
+            self.frameBufferTextures.append(glGenTextures(1))
+            glBindTexture(GL_TEXTURE_2D, self.frameBufferTextures[i])
+            glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL)
+            glTexImage2D(
+                GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+                self.width, self.height, 0,
+                GL_DEPTH_COMPONENT, GL_FLOAT, None
+            )
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE)
+            glBindTexture(GL_TEXTURE_2D, 0)
+
+        # Tell the framebuffer to send pixels to the texture we just made
+        # glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, self.frameBufferTextures[0], 0)
+
+        # Every FBO has to have a color attachment. We don't persist it
+        # because we won't be using it. We only care about depth.
         color = glGenRenderbuffers(1)
         glBindRenderbuffer( GL_RENDERBUFFER, color )
         glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, self.width, self.height)
         glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color )
-
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
     def gl_init(self):
@@ -640,25 +849,20 @@ class MouseScene(object):
         glutKeyboardFunc(self.on_keypress)
         glutMotionFunc(self.on_motion)
         glutDisplayFunc(self.display)
-        if not self.useFramebuffer:
-            glutIdleFunc(self.display)
         
         # States to set
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_NORMALIZE)
-        glEnable(GL_BLEND)
-        glEnable(GL_LINE_SMOOTH)
-        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
-        glLineWidth(3.5)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
         # Setup our VBOs and shaders
         self.setup_vbos()
         self.update_vertex_mesh()
         self.setup_shaders()
         self.setup_texture()
-        if self.useFramebuffer:
-            self.setup_fbo()
+        self.setup_fbo()
+        self.setup_reduction_shader()
+        self.setup_subtraction_shader()
+
 
     def get_likelihood(self, new_img, x, y, theta, particle_data, return_posed_mice=False):
         """Calculate the likelihood of a list of particles given a mouse mouse_image
@@ -674,10 +878,8 @@ class MouseScene(object):
                                     (provide if you don't want a memory copy)
         """
 
-        # Check the mouse image size
-        assert new_img.shape == self.mouse_img.shape, \
-                    "New image must be shape of old image (%d, %d)" % (self.mouse_width, self.mouse_height)
-        self.mouse_img =  new_img
+        # Set the new mouse image
+        self.set_mouse_image(new_img)
 
         # Check the number of particles
         num_particles, num_vars = particle_data.shape
@@ -698,9 +900,11 @@ class MouseScene(object):
         #   - vertical rotation from rest
         #   - horizontal rotation from rest
         # }
+        
         all_likelihoods = np.zeros((num_particles,), dtype='float32')
         if return_posed_mice:
             posed_mice = np.zeros((num_particles, self.mouse_height, self.mouse_width), dtype='float32')
+            self.pull_down_pixels = True
 
         this_particle_data = np.zeros((self.num_mice,num_vars))
         for i in range(num_passes):
@@ -711,28 +915,20 @@ class MouseScene(object):
             # NOTE: end-start may be longer than particle_data[start:end]
             # this works because of numpy indexing, e.g. randn(10)[8:15]
             sz = particle_data[start:end].shape[0]
-            this_particle_data[:] = 0
             this_particle_data[:sz] = particle_data[start:end]
 
             # Set the position and angle offsets
-            x = x[:sz] if isinstance(x,np.ndarray) else x
-            y = y[:sz] if isinstance(y,np.ndarray) else y
-            theta = theta[:sz] if isinstance(theta,np.ndarray) else theta
-
-            self.offset_x[:sz] = this_particle_data[:sz,0] - x
-            self.offset_y[:sz] = this_particle_data[:sz,1] - y
-            self.offset_z[:sz] = this_particle_data[:sz,2]
-            self.offset_theta_yaw[:sz] = this_particle_data[:sz,3] - theta
-            self.offset_theta_roll[:sz] = this_particle_data[:sz,4]
-            self.scale_width[:sz] = this_particle_data[:sz,5]
-            self.scale_length[:sz] = this_particle_data[:sz,6]
-            self.scale_height[:sz] = this_particle_data[:sz,7]
-
+            self.offset_x = this_particle_data[:,0] - x
+            self.offset_y = this_particle_data[:,1] - y
+            self.offset_z = this_particle_data[:,2]
+            self.offset_theta_yaw = this_particle_data[:,3] - theta
+            self.offset_theta_roll = this_particle_data[:,4]
+            self.scale_width = this_particle_data[:,5]
+            self.scale_length = this_particle_data[:,6]
+            self.scale_height = this_particle_data[:,7]
 
             # Set the joint rotations
-            rotations = np.empty((self.num_mice,this_particle_data[:,8:].shape[1]))
-
-            rotations[:sz] = this_particle_data[:sz,8:]
+            rotations = this_particle_data[:,8:]
             rotations = np.reshape(rotations, (self.num_mice, -1, 3))
             self.rotations = rotations
 
@@ -749,11 +945,92 @@ class MouseScene(object):
         else:
             return all_likelihoods
 
-def test_single_mouse():
-    path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Mouse No Median Filter, No Dilation')
-    # which_img = 30
+def test_palette():
+
+    path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Blurred Edge')
+    which_img = 35
     # which_img = 731
-    which_img = 5
+    from load_data import load_behavior_data
+    image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
+    image = image.T[::-1,:].astype('float32')
+
+
+    scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly3.npz")
+
+    num_particles = 4**2
+    numCols = 4
+    numRows = 4
+    ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
+                                scale_width = 18.0, scale_height = 200.0, 
+                                scale_length = 18.0, \
+                                numCols=numCols, numRows=numRows)
+    ms.gl_init()
+
+    # Let's fill in our particles
+    particle_data = np.zeros((num_particles, 8+ms.num_bones*3))
+
+    # Set the horizontal offsets
+    position_val = 0
+    particle_data[1:,:2] = np.random.normal(loc=0, scale=1, size=(num_particles-1, 2))
+
+    # Set the vertical offset
+    particle_data[1:,2] = np.random.normal(loc=0.0, scale=3.0, size=(num_particles-1,))
+
+    # Set the angles (yaw and roll)
+    theta_val = 0
+    particle_data[1:,3] = theta_val + np.random.normal(loc=0, scale=3, size=(num_particles-1,))
+    particle_data[1:,4] = np.random.normal(loc=0, scale=0.01, size=(num_particles-1,))
+
+    # Set the scales (width, length, height)
+    particle_data[0,5] = np.max(ms.scale_width)
+    particle_data[0,6] = np.max(ms.scale_length)
+    particle_data[0,7] = np.max(ms.scale_height)
+    particle_data[1:,5] = np.random.normal(loc=18, scale=2, size=(num_particles-1,))
+    particle_data[1:,6] = np.random.normal(loc=18, scale=2, size=(num_particles-1,))
+    particle_data[1:,7] = np.abs(np.random.normal(loc=200.0, scale=10, size=(num_particles-1,)))
+
+    # Grab the baseline joint rotations
+    rot = ms.get_joint_rotations().copy()
+    particle_data[:,8::3] = rot[:,:,0]
+    particle_data[:,9::3] = rot[:,:,1]
+    particle_data[:,10::3] = rot[:,:,2]
+
+    # Add noise to the baseline rotations (just the pitch and yaw for now)
+    # particle_data[1:,8::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
+    particle_data[1:,9+6::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones-2))
+    particle_data[1:,10::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
+
+    start = time.time()
+    for i in range(1):
+        ms.set_mouse_image(image)
+        ms.pull_down_pixels
+        ms.display()
+    duration = time.time() - start
+    print "Took %f seconds" % duration
+
+    # image = np.zeros((80,80), dtype='float32')
+    # likelihoods = ms.get_likelihood(image, \
+    #                     x=position_val, y=position_val, \
+    #                     theta=theta_val, \
+    #                     particle_data=particle_data,
+    #                     return_posed_mice=False)
+
+    # figure(figsize=(10,5))
+    # subplot(1,2,1)
+    # imshow(ms.data)
+    # colorbar()
+    # title("Original Data")
+    # subplot(1,2,2)
+    # imshow(ms.likelihood)
+    # title("Reduced Data")
+    # colorbar()
+
+    return ms
+
+def test_single_mouse():
+    path_to_behavior_data = os.path.join(os.path.dirname(__file__),'..','Test Data/Blurred Edge')
+    which_img = 35
+    # which_img = 731
     from load_data import load_behavior_data
     image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
     image = image.T[::-1,:].astype('float32')
@@ -763,11 +1040,10 @@ def test_single_mouse():
     numRows = 32
     scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly3.npz")
 
-    useFramebuffer = False
     ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
                                 scale_width = 18.0, scale_height = 200.0, 
                                 scale_length = 18.0, \
-                                numCols=numCols, numRows=numRows, useFramebuffer=useFramebuffer)
+                                numCols=numCols, numRows=numRows)
     ms.gl_init()
 
 
@@ -835,10 +1111,6 @@ def test_single_mouse():
     means = [np.mean(likelihoods[index==i]) for i in range(num_bins)]
     errs = [np.std(likelihoods[index==i]) for i in range(num_bins)]
     errorbar(bins, means, yerr=errs, linewidth=2)
-    # savefig("/Users/Alex/Desktop/angle vs likelihood.png")
-    # figure(); imshow(ms.likelihood)
-    # figure(); imshow(ms.data); colorbar()
-    # figure(); imshow(ms.diffmap); colorbar()
 
 
     # Find the five best mice
@@ -848,8 +1120,7 @@ def test_single_mouse():
     
     figure()
     title("Five best (best, far right)")
-    imshow(np.hstack((ms.mouse_img, posed_mice[0], fivebest)))
-    plt.clim(0,300)
+    imshow(np.hstack((image, posed_mice[0], fivebest)))
     vlines(ms.mouse_width, 0, ms.mouse_height, linewidth=3, color='w')
     text(ms.mouse_width/2.0, ms.mouse_width*0.9,'Real Mouse',
          horizontalalignment='center',
@@ -866,21 +1137,10 @@ def test_single_mouse():
 
 if __name__ == '__main__':
     
-    useFramebuffer = True
-    if not useFramebuffer:
-        scenefile = "data/mouse_mesh_low_poly2.npz"
-        scale = 12.0
-        ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
-                                    scale_width = scale, scale_height = 12, scale_length = scale, \
-                                    numCols=4, numRows=4, useFramebuffer=useFramebuffer)
-        ms.gl_init()
-        glutMainLoop()
-    else:
-        test_single_mouse()
-        # for i in range(10):
-        #   old_rotations = np.copy(ms.rotations)
-        #   ms.rotations[:,:,1:] += np.random.normal(scale=10,
-        #                                       size=(self.num_mice, self.num_bones, 2))
-        #   ms.display()
-        #   ms.rotations = old_rotations
+        ms, rotation_diffs, likelihoods, particle_data, posed_mice = test_single_mouse()
+        # ms = test_palette()
         plt.show()
+
+        # import Image
+        # big_likelihood = -np.array(Image.fromarray(-ms.likelihood).resize(ms.diff_data.shape))
+        # imshow(ms.diff_data-ms.get_clipZ()*0.1*big_likelihood)
