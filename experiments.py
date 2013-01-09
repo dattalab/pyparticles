@@ -328,6 +328,79 @@ class RandomWalkLearnedNoise(Experiment):
 
 # TODO dynamics/momentum experiment
 
+
+class Smarticles(Experiment):
+    def run(self,frame_range):
+        datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
+
+        num_particles = 1024*50
+        cutoff = 1024*10
+
+        MNIWARparams = (
+                16+5,
+                (16+5)*20*np.eye(16),
+                np.zeros((16,32)),
+                10*np.eye(32)
+            )
+
+        pose_model = pose_models.PoseModel3()
+
+        _build_mousescene(pose_model.scenefilepath)
+        images, xytheta = _load_data(datapath,frame_range)
+
+        pose_model.default_renderer_pose = \
+            pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+        pose_model.default_particle_pose = \
+            pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+
+        def log_likelihood(stepnum,im,poses):
+            return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/1000.
+
+        ### first we do two steps of something basic to get two AR lags
+        randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
+        subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,2.,0.01,0.2,0.2,1.0,) + (6.,)*(2+2*3))
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.AR(
+                    numlags=1,
+                    previous_outputs=(pose_model.default_particle_pose,),
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
+                    ) for itr in range(num_particles)])
+
+        pf.step(images[0])
+        randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
+        pf.step(images[1])
+
+        starter_particles = pf.particles
+
+        ### now we build AR particles and a new particle filter
+
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.AR(
+                    numlags=2,
+                    previous_outputs=(p.track[1],p.track[0]),
+                    baseclass=lambda: pm.HDPHSMMSampler(
+                        alpha=6.,gamma=6.,
+                        obs_sampler_factory=lambda: pd.MNIWAR(*MNIWARparams),
+                        dur_sampler_factory=lambda: pd.Poisson(2*20,2),
+                    )
+                ) for p in starter_particles]
+            )
+
+        ### do a few steps with lots of particles
+        for i in progprint_xrange(2,images.shape[0],perline=5):
+            if i % 5 == 0:
+                self.save_progress(pf,pose_model,datapath,frame_range)
+
+            pf.step(images[i])
+
+
 ######################
 #  Common Utilities  #
 ######################
