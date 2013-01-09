@@ -257,7 +257,7 @@ class RandomWalkWithInjection(Experiment):
         # re-calibrate after first step
         pf.change_numparticles(num_particles)
         for p in pf.particles:
-            p.sampler.counts = np.array([5.,1.])*10
+            p.sampler.counts = np.array([5.,1.])*10 # TODO should this be switched? lots of teleporting? more particles? we want every history to survive for sure, so injection should be done with that in mind... each particle needs ~4k darts to its name, not randomly attached to hsitories # TODO change to proper injection, for each unique history, give it 4k darts?
 
         for i in progprint_xrange(1,images.shape[0],perline=10):
             # save
