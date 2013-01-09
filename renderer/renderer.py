@@ -414,7 +414,7 @@ class MouseScene(object):
         glUseProgram(0)
         
         # For Debuggin!
-        # self.diff_data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
+        self.diff_data = glReadPixels(0,0,self.width,self.height, GL_DEPTH_COMPONENT, GL_FLOAT)
 
         # REDUCTION TO LIKELIHOODS
         # ================================================================================
@@ -474,7 +474,8 @@ class MouseScene(object):
         glUseProgram(0)
         
         self.likelihood = glReadPixels(0,0,output_size[0], output_size[1], GL_DEPTH_COMPONENT, GL_FLOAT)
-        self.likelihood = -self.likelihood
+        self.likelihood = -self.likelihood*2905234.0 # A MAGIIIIIICCC NUUUUUMMBBERRRR
+
         # glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0)
         # glBindTexture(GL_TEXTURE_2D, self.frameBufferTextures[0])
         # self.likelihood = glGetTexImagef(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GL_FLOAT)
@@ -502,7 +503,7 @@ class MouseScene(object):
                     likelihood[i,j] = -this_diff[startr:endr,startc:endc].sum()
                     
             self.posed_mice = posed_mice
-            # self.old_likelihood = likelihood
+            self.old_likelihood = likelihood
 
         # If we are using a framebuffer, we'll finally unbind it.
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
@@ -927,20 +928,28 @@ class MouseScene(object):
             # NOTE: end-start may be longer than particle_data[start:end]
             # this works because of numpy indexing, e.g. randn(10)[8:15]
             sz = particle_data[start:end].shape[0]
+            this_particle_data[:] = 0
             this_particle_data[:sz] = particle_data[start:end]
 
             # Set the position and angle offsets
-            self.offset_x = this_particle_data[:,0] - x
-            self.offset_y = this_particle_data[:,1] - y
-            self.offset_z = this_particle_data[:,2]
-            self.offset_theta_yaw = this_particle_data[:,3] - theta
-            self.offset_theta_roll = this_particle_data[:,4]
-            self.scale_width = this_particle_data[:,5]
-            self.scale_length = this_particle_data[:,6]
-            self.scale_height = this_particle_data[:,7]
+            x = x[:sz] if isinstance(x,np.ndarray) else x
+            y = y[:sz] if isinstance(y,np.ndarray) else y
+            theta = theta[:sz] if isinstance(theta,np.ndarray) else theta
+
+            self.offset_x[:sz] = this_particle_data[:sz,0] - x
+            self.offset_y[:sz] = this_particle_data[:sz,1] - y
+            self.offset_z[:sz] = this_particle_data[:sz,2]
+            self.offset_theta_yaw[:sz] = this_particle_data[:sz,3] - theta
+            self.offset_theta_roll[:sz] = this_particle_data[:sz,4]
+            self.scale_width[:sz] = this_particle_data[:sz,5]
+            self.scale_length[:sz] = this_particle_data[:sz,6]
+            self.scale_height[:sz] = this_particle_data[:sz,7]
+
 
             # Set the joint rotations
-            rotations = this_particle_data[:,8:]
+            rotations = np.empty((self.num_mice,this_particle_data[:,8:].shape[1]))
+
+            rotations[:sz] = this_particle_data[:sz,8:]
             rotations = np.reshape(rotations, (self.num_mice, -1, 3))
             self.rotations = rotations
 
@@ -1047,7 +1056,9 @@ def test_single_mouse():
     image = load_behavior_data(path_to_behavior_data, which_img+1, 'images')[-1]
     image = image.T[::-1,:].astype('float32')
 
-    num_particles = 64**2
+    num_repeated_palettes = 1
+    num_particles = 32**2
+    num_particles *= num_repeated_palettes
     numCols = 32
     numRows = 32
     scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly3.npz")
@@ -1097,8 +1108,9 @@ def test_single_mouse():
     particle_data[1:,9+6::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones-2))
     particle_data[1:,10::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
 
-    np.save("random_particles.npy", particle_data)
+    # np.save("random_particles.npy", particle_data)
     particle_data = np.load("random_particles.npy")
+    particle_data = np.tile(particle_data, (num_repeated_palettes,1))
 
     likelihoods, posed_mice = ms.get_likelihood(image, \
                         x=position_val, y=position_val, \
@@ -1108,23 +1120,23 @@ def test_single_mouse():
 
 
     # L = ms.likelihood.T.ravel()
-    particle_rotations = np.hstack((particle_data[:,9::3], particle_data[:,10::3]))
-    real_rotations = np.hstack((rot[:,:,1], rot[:,:,2]))
-    rotation_diffs = np.sum((particle_rotations - real_rotations)**2.0, 1)
+    # particle_rotations = np.hstack((particle_data[:,9::3], particle_data[:,10::3]))
+    # real_rotations = np.hstack((rot[:,:,1], rot[:,:,2]))
+    # rotation_diffs = np.sum((particle_rotations - real_rotations)**2.0, 1)
 
-    figure();
-    plot(rotation_diffs, likelihoods, '.k')
-    ylabel("Likelihood")
-    xlabel("Rotation angle differences")
-    title("Rotation angle difference versus likelihood")
+    # figure();
+    # plot(rotation_diffs, likelihoods, '.k')
+    # ylabel("Likelihood")
+    # xlabel("Rotation angle differences")
+    # title("Rotation angle difference versus likelihood")
 
-    binrange = (0,3000)
-    num_bins = 10
-    bins = np.linspace(binrange[0], binrange[1], num_bins)
-    index = np.digitize(rotation_diffs, bins)
-    means = [np.mean(likelihoods[index==i]) for i in range(num_bins)]
-    errs = [np.std(likelihoods[index==i]) for i in range(num_bins)]
-    errorbar(bins, means, yerr=errs, linewidth=2)
+    # binrange = (0,3000)
+    # num_bins = 10
+    # bins = np.linspace(binrange[0], binrange[1], num_bins)
+    # index = np.digitize(rotation_diffs, bins)
+    # means = [np.mean(likelihoods[index==i]) for i in range(num_bins)]
+    # errs = [np.std(likelihoods[index==i]) for i in range(num_bins)]
+    # errorbar(bins, means, yerr=errs, linewidth=2)
 
 
     # Find the five best mice
@@ -1146,12 +1158,12 @@ def test_single_mouse():
          verticalalignment='center',
          color='white')
 
-    return ms, rotation_diffs, likelihoods, particle_data, posed_mice
+    return ms, likelihoods, particle_data, posed_mice
 
 
 if __name__ == '__main__':
     
-        ms, rotation_diffs, likelihoods, particle_data, posed_mice = test_single_mouse()
+        ms, likelihoods, particle_data, posed_mice = test_single_mouse()
         # ms = test_palette()
         plt.show()
 
@@ -1162,3 +1174,9 @@ if __name__ == '__main__':
         # idx = show_me == 0
         # show_me[idx] += 30.0*np.abs(ms.get_clipZ()*big_likelihood[idx])
         # imshow(show_me)
+
+        figure()
+        subplot(1,2,1); imshow(ms.old_likelihood); colorbar();
+        subplot(1,2,2); imshow(ms.likelihood*2905234.0); colorbar()
+        np.set_printoptions(suppress=True)
+        print ms.old_likelihood.min() / ms.likelihood.min()
