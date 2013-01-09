@@ -187,30 +187,7 @@ class PoseModel3(PoseModelBase):
         super(PoseModel3,self).__init__()
 
 
-class PoseModel6(PoseModelBase):
-    '''
-    five joints, not six as in Model2
-    don't propose over theta_roll or first two joints' y angles
-    '''
-
-    __metaclass__ = PoseModelMetaclass
-
-    scenefilepath = "renderer/data/mouse_mesh_low_poly3.npz"
-
-    ParticlePose = namedtuple(
-            'ParticlePose',
-            ['x','y','theta_yaw',
-             'z','theta_roll','s_w','s_l','s_h',
-             'psi_z1','psi_z2',
-             'psi_y3','psi_z3','psi_y4','psi_z4','psi_y5','psi_z5'])
-
-    RendererPose = namedtuple(
-            'RendererPose',
-            ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
-             ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
-
-    del i,v
-
+class PoseModel10(PoseModel3):
     def __init__(self):
         jr = np.load(self.scenefilepath)['joint_rotations']
         self.default_renderer_pose = self.RendererPose(
@@ -219,4 +196,4 @@ class PoseModel6(PoseModelBase):
                 s_w=16.,s_l=18.,s_h=200.,
                 **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
-        super(PoseModel3,self).__init__()
+        super(PoseModel10,self).__init__()
