@@ -260,7 +260,7 @@ class RandomWalkFixedNoiseFrozenTrack(Experiment):
         for i in progprint_xrange(10,images.shape[0],perline=10):
             means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-10] for p in pf.particles]),axis=0))
             print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-10,np.unique([p.track[i-10][0] for p in pf.particles]))
+                    (i-10,int(np.unique([p.track[i-10][0] for p in pf.particles])))
 
             pf.step(images[i])
 
