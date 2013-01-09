@@ -1,3 +1,5 @@
+import numpy as np
+
 behaviors = [(0, "f"),
 (9, "r"),
 (42, "f"),
