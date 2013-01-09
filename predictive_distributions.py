@@ -54,6 +54,26 @@ class NegativeBinomial(PredictiveDistribution): # TODO
 #  Observations  #
 ##################
 
+class FixedNoiseDiagonal(PredictiveDistribution):
+    def __init__(self,scales):
+        self.scales = scales
+
+    def _update_hypparams(self,y):
+        pass
+
+    def _sample(self):
+        return self.scales*np.random.randn(self.scales.shape[0])
+
+    def copy(self):
+        return self
+
+    def __str__(self):
+        return '%s(%s)' % (self.__class__.__name__,self.weights)
+
+    def __repr__(self):
+        return str(self)
+
+
 class FixedNoise(PredictiveDistribution):
     def __init__(self,noisechol):
         self.noisechol = noisechol
