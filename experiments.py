@@ -218,6 +218,8 @@ class RandomWalkFixedNoiseFrozenTrack(Experiment):
         num_particles = 1024*50
         cutoff = 1024*25
 
+        lag = 15
+
         randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
         subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,2.,0.01,0.2,0.2,1.0,) + (5.,)*(2+2*3))
 
@@ -250,20 +252,20 @@ class RandomWalkFixedNoiseFrozenTrack(Experiment):
         pf.change_numparticles(num_particles)
         randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
 
-        for i in progprint_xrange(1,10):
+        for i in progprint_xrange(1,lag):
             pf.step(images[i])
         self.save_progress(pf,pose_model,datapath,frame_range,means=[])
 
         # now step with freezing means
         means = []
-        for i in progprint_xrange(10,images.shape[0],perline=10):
-            means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-10] for p in pf.particles]),axis=0))
+        for i in progprint_xrange(lag,images.shape[0],perline=10):
+            means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
             print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-10,len(np.unique([p.track[i-10][0] for p in pf.particles])))
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
 
             pf.step(images[i])
 
-            if (i % 10) == 0:
+            if (i % 5) == 0:
                 self.save_progress(pf,pose_model,datapath,frame_range,means=means)
 
         self.save_progress(pf,pose_model,datapath,frame_range,means=means)
