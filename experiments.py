@@ -326,9 +326,6 @@ class RandomWalkLearnedNoise(Experiment):
             print ''
 
 
-# TODO dynamics/momentum experiment
-
-
 class Smarticles(Experiment):
     def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
@@ -388,7 +385,7 @@ class Smarticles(Experiment):
 
         dof = 10
         K = Sytyt
-        M = np.linalg.solve(K,Syyt).T.copy()
+        M = np.linalg.solve(K,Syyt.T).T.copy()
         S = Syy
 
         MNIWARparams = (dof,S,M,K)
@@ -414,6 +411,10 @@ class Smarticles(Experiment):
                 self.save_progress(pf,pose_model,datapath,frame_range)
 
             pf.step(images[i])
+
+
+
+# TODO momentum experiment
 
 
 ######################
