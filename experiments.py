@@ -336,13 +336,6 @@ class Smarticles(Experiment):
         num_particles = 1024*20
         cutoff = 1024*10
 
-        MNIWARparams = (
-                16+5,
-                (16+5)*20*np.eye(16),
-                np.zeros((16,32)),
-                10*np.eye(32)
-            )
-
         pose_model = pose_models.PoseModel3()
 
         _build_mousescene(pose_model.scenefilepath)
@@ -372,11 +365,33 @@ class Smarticles(Experiment):
 
         pf.step(images[0])
         randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
-        pf.step(images[1])
-
+        for i in progprint_xrange(1,10,perline=10):
+            pf.step(images[i])
         starter_particles = pf.particles
 
         ### now we build AR particles and a new particle filter
+
+        print 'changing to AR now!'
+
+        from numpy.lib.stride_tricks import as_strided as ast
+        def AR_striding(data,nlags):
+            if data.ndim == 1:
+                data = np.reshape(data,(-1,1))
+            sz = data.dtype.itemsize
+            return ast(data,shape=(data.shape[0]-nlags,data.shape[1]*(nlags+1)),strides=(data.shape[1]*sz,sz))
+
+        data = AR_striding(np.array(pf.particles[0].track),2)
+
+        Syy = data[:,-16:].T.dot(data[:,-16:])
+        Sytyt = data[:,:-16].T.dot(data[:,:-16])
+        Syyt = data[:,-16:].T.dot(data[:,:-16])
+
+        dof = 10
+        K = Sytyt
+        M = np.linalg.solve(K,Syyt).T.copy()
+        S = Syy
+
+        MNIWARparams = (dof,S,M,K)
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
@@ -384,7 +399,7 @@ class Smarticles(Experiment):
                 log_likelihood,
                 [particle_filter.AR(
                     numlags=2,
-                    previous_outputs=(p.track[1],p.track[0]),
+                    previous_outputs=(p.track[-1],p.track[-2]),
                     baseclass=lambda: pm.HDPHSMMSampler(
                         alpha=6.,gamma=6.,
                         obs_sampler_factory=lambda: pd.MNIWAR(*MNIWARparams),
@@ -394,7 +409,7 @@ class Smarticles(Experiment):
             )
 
         ### do a few steps with lots of particles
-        for i in progprint_xrange(2,images.shape[0],perline=5):
+        for i in progprint_xrange(10,images.shape[0],perline=10):
             if i % 5 == 0:
                 self.save_progress(pf,pose_model,datapath,frame_range)
 
