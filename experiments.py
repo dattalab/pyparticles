@@ -221,7 +221,8 @@ class RandomWalkFixedNoiseFrozenTrack(Experiment):
         randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
         subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,2.,0.01,0.2,0.2,1.0,) + (5.,)*(2+2*3))
 
-        pose_model = pose_models.PoseModel3()
+        # pose_model = pose_models.PoseModel3()
+        pose_model = pose_models.PoseModel6()
 
         _build_mousescene(pose_model.scenefilepath)
         images, xytheta = _load_data(datapath,frame_range)
