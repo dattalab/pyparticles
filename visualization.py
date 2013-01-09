@@ -11,6 +11,23 @@ import particle_filter
 max_vert = 500
 dest_dir = '/Users/mattjj/Desktop/movie_new'
 
+def frozentrack_movie(pf_file):
+    with open(pf_file,'r') as infile:
+        it = cPickle.load(infile)
+
+        if isinstance(it,tuple):
+            # old version
+            pf, pose_model, datapath, frame_range = cPickle.load(infile)
+        elif isinstance(it,dict):
+            pf = it['particlefilter']
+            pose_model = it['pose_model']
+            datapath = it['datapath']
+            frame_range = it['frame_range']
+            means = it['means']
+
+    track = np.array(means)
+    return movie(track,pose_model,datapath,frame_range)
+
 def meantrack_movie(pf_file):
     with open(pf_file,'r') as infile:
         it = cPickle.load(infile)
