@@ -10,6 +10,7 @@ import particle_filter
 
 max_vert = 500
 dest_dir = '/Users/mattjj/Desktop/movie_new'
+dest_dir2 = '/Users/mattjj/Desktop/sidebyside_movie_new/'
 
 def frozentrack_movie(pf_file):
     with open(pf_file,'r') as infile:
@@ -26,7 +27,8 @@ def frozentrack_movie(pf_file):
             means = it['means']
 
     track = np.array(means)
-    return movie(track,pose_model,datapath,frame_range)
+    return movie_sidebyside(track,pose_model,datapath,frame_range)
+    # return movie(track,pose_model,datapath,frame_range)
 
 def meantrack_movie(pf_file):
     with open(pf_file,'r') as infile:
@@ -43,6 +45,25 @@ def meantrack_movie(pf_file):
 
     track = particle_filter.meantrack(pf)
     return movie(track,pose_model,datapath,frame_range)
+
+def movie_sidebyside(track,pose_model,datapath,frame_range):
+    images, xytheta = _load_data(datapath,(frame_range[0],frame_range[0]+track.shape[0]-1))
+
+    track2 = track.copy()
+    track2[:,:2] = 0
+
+    ms = _build_mousescene(pose_model.scenefilepath)
+    posed_mice = ms.get_likelihood(
+            np.zeros(images[0].shape),
+            particle_data=pose_model.expand_poses(track2),
+            x=0,
+            y=0,
+            theta=xytheta[:,2],
+            return_posed_mice=True)[1]
+
+    for i in range(len(posed_mice)):
+        Image.fromarray(np.hstack((images[i][:,::-1].T,posed_mice[i])).astype('uint8')).save(os.path.join(dest_dir2, "%03d.png" % i))
+
 
 def movie(track,pose_model,datapath,frame_range):
     images, xytheta = _load_data(datapath,(frame_range[0],frame_range[0]+track.shape[0]-1))
