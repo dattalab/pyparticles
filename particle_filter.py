@@ -50,6 +50,10 @@ class ParticleFilter(object):
         warnings.warn('untested')
         # breaks posterior estimation, but good for tracking if the proposal
         # model doesn't have much meaning!
+
+        # attaches to random histories
+        # need to weight likelihood
+
         self.particles_were_injected = True
 
         if self.numsteps > 0:
@@ -67,6 +71,8 @@ class ParticleFilter(object):
 
         self.locs = np.concatenate((self.locs,[p.sample_next(**particle_kwargs) for p in particles_to_inject]))
         self.particles += particles_to_inject
+        # TODO TODO weight likelihoods! these could be shitty darts and this
+        # sample_next must be weighted
 
         self.weights_norm = np.concatenate((self.weights_norm,new_weights_norm))
         self.log_weights = np.concatenate((self.log_weights,new_log_weights))
