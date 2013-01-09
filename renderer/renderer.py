@@ -413,7 +413,6 @@ class MouseScene(object):
         # Turn off the shader. We're done. 
         glUseProgram(0)
         
-        self.diff_data = glReadPixels(0,0,self.width,self.height,GL_DEPTH_COMPONENT,GL_FLOAT)
         # REDUCTION TO LIKELIHOODS
         # ================================================================================
         # ================================================================================        
@@ -473,6 +472,11 @@ class MouseScene(object):
         
         self.likelihood = glReadPixels(0,0,output_size[0], output_size[1], GL_DEPTH_COMPONENT, GL_FLOAT)
         self.likelihood = -self.likelihood
+        # glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0)
+        # glBindTexture(GL_TEXTURE_2D, self.frameBufferTextures[0])
+        # self.likelihood = glGetTexImagef(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GL_FLOAT)
+        # glBindTexture(GL_TEXTURE_2D, 0)
+
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         
 
@@ -957,9 +961,9 @@ def test_palette():
 
     scenefile = os.path.join(os.path.dirname(__file__),"data/mouse_mesh_low_poly3.npz")
 
-    num_particles = 4**2
-    numCols = 4
-    numRows = 4
+    num_particles = 32**2
+    numCols = 32
+    numRows = 32
     ms = MouseScene(scenefile, mouse_width=80, mouse_height=80, \
                                 scale_width = 18.0, scale_height = 200.0, 
                                 scale_length = 18.0, \
@@ -1001,9 +1005,9 @@ def test_palette():
     particle_data[1:,10::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
 
     start = time.time()
-    for i in range(1):
+    for i in range(30):
         ms.set_mouse_image(image)
-        ms.pull_down_pixels
+        ms.pull_down_pixels = False
         ms.display()
     duration = time.time() - start
     print "Took %f seconds" % duration
@@ -1086,11 +1090,11 @@ def test_single_mouse():
     particle_data[1:,10::3] += np.random.normal(scale=20, size=(num_particles-1, ms.num_bones))
 
 
-    likelihoods, posed_mice = ms.get_likelihood(image, \
+    likelihoods = ms.get_likelihood(image, \
                         x=position_val, y=position_val, \
                         theta=theta_val, \
                         particle_data=particle_data,
-                        return_posed_mice=True)
+                        return_posed_mice=False)
 
 
     # L = ms.likelihood.T.ravel()
@@ -1137,8 +1141,8 @@ def test_single_mouse():
 
 if __name__ == '__main__':
     
-        ms, rotation_diffs, likelihoods, particle_data, posed_mice = test_single_mouse()
-        # ms = test_palette()
+        # ms, rotation_diffs, likelihoods, particle_data, posed_mice = test_single_mouse()
+        ms = test_palette()
         plt.show()
 
         # import Image
