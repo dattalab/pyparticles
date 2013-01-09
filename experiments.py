@@ -327,6 +327,9 @@ class RandomWalkLearnedNoise(Experiment):
 
 
 class Smarticles(Experiment):
+    # NOTE NOTE NOTE
+    # I think this doesn't work because of autoregressive ness
+
     def run(self,frame_range):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data","Blurred Edge")
 
