@@ -8,3 +8,4 @@ renderer/data/frame*
 *.npz
 *.gz
 /results/*
+/requested_results
