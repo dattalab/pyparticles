@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-import inspect, shutil, os, abc, cPickle
+import inspect, shutil, os, abc, cPickle, datetime, warnings
 
 from renderer.renderer import MouseScene
 from renderer.load_data import load_behavior_data
@@ -53,19 +53,17 @@ class Experiment(object):
         data path: %s
         frame range: %s
         pose model: %s
+        start time: %s
 
         code.py contains the experiment code used to run the experiment; see also experiments.py
 
-        the step-numbered files are saved with pickle via
-            with open(outfilename,'w') as outfile:
-                cPickle.dump((particlefilter,pose_model,datapath,frame_range),
-                                outfile,protocol=2)
-                        ''' % (self.__class__.__name__, datapath, frame_range, pose_model)
+                        ''' % (self.__class__.__name__, datapath, frame_range, pose_model, datetime.datetime.now())
                         )
 
         shutil.copy(outfilename,os.path.join('Test Data','current_run'))
 
-    def load_most_recent_progress(self):
+    def load_most_recent_progress(self,frame_range):
+        warnings.warn('unteseted, unused')
         most_recent_filename = os.path.join(self.cachepath(frame_range),
                 max([int(x) for x in os.listdir(self.cachepath(frame_range)) if x.isdigit()]))
         with open(os.path.join(self.cachepath(frame_range),most_recent_filename),'r') as infile:
