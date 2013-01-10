@@ -354,8 +354,8 @@ class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
         num_particles_firststep = 1024*50
-        num_particles = 1024*30
-        cutoff = 1024*15
+        num_particles = 1024*20
+        cutoff = 1024*10
 
         lag = 15
 
@@ -402,8 +402,8 @@ class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
 
         starters = pf.particles
 
-        propmatrix = np.hstack((2*np.eye(pose_model.particle_pose_tuple_len),-1*np.eye(pose_model.particle_pose_tuple_len)))
-        invwishparams = (20,20*subsequent_randomwalk_noisechol/4.)
+        propmatrix = np.hstack((2*np.eye(pose_model.particle_pose_tuple_len),-1*np.eye(pose_model.particle_pose_tuple_len))) / 2.
+        invwishparams = (20,20*subsequent_randomwalk_noisechol/2.)
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
