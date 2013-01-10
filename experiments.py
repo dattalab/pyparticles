@@ -3,8 +3,8 @@ import numpy as np
 na = np.newaxis
 import inspect, shutil, os, abc, cPickle
 
-from renderer.load_data import load_behavior_data
 from renderer.renderer import MouseScene
+from renderer.load_data import load_behavior_data
 
 import pose_models
 import particle_filter
@@ -433,6 +433,86 @@ class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
                 self.save_progress(pf,pose_model,datapath,frame_range,means=means)
 
         self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+
+class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
+    # should look a lot like RandomWalkFixedNoise
+    def run(self,frame_range):
+        datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+
+        num_particles_firststep = 1024*10
+        num_particles = 1024*4
+        cutoff = 1024*4
+
+        lag = 15
+
+        pose_model = pose_models.PoseModel_5Joint_origweights_AW()
+
+        variances = {
+            'x':             {'init':3.0,  'subsq':1.5},
+            'y':             {'init':3.0,  'subsq':1.5},
+            'theta_yaw':     {'init':7.0,  'subsq':3.0},
+            'z':             {'init':3.0,  'subsq':0.25},
+            'theta_roll':    {'init':0.01, 'subsq':0.01},
+            's_w':           {'init':2.0,  'subsq':1e-6},
+            's_l':           {'init':2.0,  'subsq':1e-6},
+            's_h':           {'init':1.0,  'subsq':1e-6}
+        }
+        particle_fields = pose_model.ParticlePose._fields
+        joint_names = [j for j in particle_fields if 'psi_' in j]
+        [variances.update({j:{'init':20.0, 'subsq':5.0}}) for j in joint_names]
+
+        randomwalk_noisechol = np.diag([variances[p]['init'] for p in particle_fields])
+        subsequent_randomwalk_noisechol = np.diag([variances[p]['subsq'] for p in particle_fields])
+
+        # TODO check z size
+        # TODO try cutting scale, fit on first 10 or so
+
+        
+
+        _build_mousescene(pose_model.scenefilepath)
+        images, xytheta = _load_data(datapath,frame_range)
+
+        pose_model.default_renderer_pose = \
+            pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+        pose_model.default_particle_pose = \
+            pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+
+        def log_likelihood(stepnum,im,poses):
+            return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/2000.
+
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.AR(
+                    numlags=1,
+                    previous_outputs=(pose_model.default_particle_pose,),
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
+                    ) for itr in range(num_particles_firststep)])
+
+        pf.step(images[0])
+        pf.change_numparticles(num_particles)
+        randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
+
+        for i in progprint_xrange(1,lag):
+            pf.step(images[i])
+        self.save_progress(pf,pose_model,datapath,frame_range,means=[])
+
+        # now step with freezing means
+        means = []
+        for i in progprint_xrange(lag,images.shape[0],perline=10):
+            means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
+            print '\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+
+            pf.step(images[i])
+
+            if (i % 5) == 0:
+                self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+
+        self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+
 
 ### currently busted
 
