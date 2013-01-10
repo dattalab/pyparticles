@@ -215,8 +215,8 @@ class RandomWalkFixedNoiseFrozenTrack(Experiment):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
         num_particles_firststep = 1024*80
-        num_particles = 1024*50
-        cutoff = 1024*25
+        num_particles = 1024*60
+        cutoff = 1024*30
 
         lag = 15
 
