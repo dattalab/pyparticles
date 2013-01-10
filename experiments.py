@@ -75,6 +75,8 @@ class Experiment(object):
     ### don't override this stuff
 
     def __init__(self,frame_range):
+        print 'results directory: %s' % self.cachepath
+
         if os.path.exists(self.cachepath):
             response = raw_input('cache file exists: [o]verwrite, [r]esume, or do [N]othing? ').lower()
             if response == 'r':
@@ -351,14 +353,14 @@ class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
 
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
-        num_particles_firststep = 1024*80
-        num_particles = 1024*60
-        cutoff = 1024*30
+        num_particles_firststep = 1024*50
+        num_particles = 1024*30
+        cutoff = 1024*15
 
         lag = 15
 
         randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
-        subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,0.25,0.01,1e-6,1e-6,1e-6,) + (5.,)*(2+2*3))
+        subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,0.25,0.01,1e-6,1e-6,1e-6,) + (5.,)*(2+2*3)) / 3.
 
         # pose_model = pose_models.PoseModel3()
         pose_model = pose_models.PoseModel10()
