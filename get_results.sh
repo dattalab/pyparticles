@@ -14,7 +14,7 @@ fi
 mac_results=$(ssh willsky-student7.lids.mit.edu "ssh -p 22222 Alex@localhost \"cd ~/hsmm-particlefilters2/results && find . -iname '*.txt' | xargs -I{} grep -H ${1} {}\"")
 ubuntu_results=$(ssh willsky-student7.lids.mit.edu "ssh -p 22225 dattalab@localhost \"cd ~/hsmm-particlefilters/results && find . -iname '*.txt' | xargs -I{} grep -H ${1} {}\"")
 
-echo -e "$mac_results" "\n" "$ubuntu_results" | sed -e '/^\s$/d' | cat -n
+echo -e "$mac_results" "\n" "$ubuntu_results" | sed '/^[ \n]*$/d' | cat -n
 
 echo "get one? "
 read num
