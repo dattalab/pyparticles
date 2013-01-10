@@ -101,6 +101,7 @@ class ParticleFilter(object):
             sources = self._independent_sources(num)
 
         self.particles = [self.particles[i].copy() for i in sources]
+        self.locs = self.locs[sources] # for resizing
 
         self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
         self.weights_norm = np.repeat(1./num, num)
