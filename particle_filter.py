@@ -19,18 +19,19 @@ class ParticleFilter(object):
         self.log_likelihood_fn = log_likelihood_fn
         self.cutoff = cutoff
 
-        self.locs = np.empty((len(initial_particles),ndim))
+        self.numsteps = 0
         self.log_weights = np.zeros(len(initial_particles))
         self.weights_norm = np.ones(len(initial_particles))
 
         self._Nsurvive_history = []
         self._Neff_history = []
-        self.numsteps = 0
+
+        self._locs = np.empty((len(initial_particles),ndim))
 
     def step(self,data,resample_method='lowvariance',particle_kwargs={}):
         for idx, particle in enumerate(self.particles):
-            self.locs[idx] = particle.sample_next(**particle_kwargs)
-        self.log_weights += self.log_likelihood_fn(self.numsteps,data,self.locs)
+            self._locs[idx] = particle.sample_next(**particle_kwargs)
+        self.log_weights += self.log_likelihood_fn(self.numsteps,data,self._locs)
 
         if self._Neff < self.cutoff:
             self._resample(resample_method)
@@ -69,7 +70,7 @@ class ParticleFilter(object):
                 new_log_weights[i] = self.log_weights[i] - np.log(2)
                 self.log_weights[i] -= np.log(2)
 
-        self.locs = np.concatenate((self.locs,[p.sample_next(**particle_kwargs) for p in particles_to_inject]))
+        self._locs = np.concatenate((self._locs,[p.sample_next(**particle_kwargs) for p in particles_to_inject]))
         self.particles += particles_to_inject
         # TODO TODO weight likelihoods! these could be shitty darts and this
         # sample_next must be weighted
@@ -100,7 +101,6 @@ class ParticleFilter(object):
             sources = self._independent_sources(num)
 
         self.particles = [self.particles[i].copy() for i in sources]
-        self.locs = self.locs[sources]
 
         self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
         self.weights_norm = np.repeat(1./num, num)

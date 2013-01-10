@@ -40,11 +40,11 @@ class Experiment(object):
                 kwargs
             ))
 
-        outfilename = os.path.join(self.cachepath,str(particlefilter.numsteps))
+        outfilename = os.path.join(self.cachepath(frame_range),str(particlefilter.numsteps))
         with open(outfilename,'w') as outfile:
             cPickle.dump(dct,outfile,protocol=2)
 
-        descripfilename = os.path.join(self.cachepath,'description.txt')
+        descripfilename = os.path.join(self.cachepath(frame_range),'description.txt')
         if not os.path.exists(descripfilename):
             with open(descripfilename,'w') as outfile:
                 outfile.write(
@@ -66,37 +66,36 @@ class Experiment(object):
         shutil.copy(outfilename,os.path.join('Test Data','current_run'))
 
     def load_most_recent_progress(self):
-        most_recent_filename = os.path.join(self.cachepath,
-                max([int(x) for x in os.listdir(self.cachepath) if x.isdigit()]))
-        with open(os.path.join(self.cachepath,most_recent_filename),'r') as infile:
+        most_recent_filename = os.path.join(self.cachepath(frame_range),
+                max([int(x) for x in os.listdir(self.cachepath(frame_range)) if x.isdigit()]))
+        with open(os.path.join(self.cachepath(frame_range),most_recent_filename),'r') as infile:
             particlefilter, pose_model, datapath, frame_range = cPickle.load(infile)
         return particlefilter, pose_model, datapath, frame_range
 
     ### don't override this stuff
 
     def __init__(self,frame_range):
-        print 'results directory: %s' % self.cachepath
+        print 'results directory: %s' % self.cachepath(frame_range)
 
-        if os.path.exists(self.cachepath):
+        if os.path.exists(self.cachepath(frame_range)):
             response = raw_input('cache file exists: [o]verwrite, [r]esume, or do [N]othing? ').lower()
             if response == 'r':
                 self.resume(frame_range)
             elif response == 'o':
-                shutil.rmtree(self.cachepath)
+                shutil.rmtree(self.cachepath(frame_range))
             else:
                 print 'did nothing'
                 return
 
-        os.makedirs(self.cachepath)
+        os.makedirs(self.cachepath(frame_range))
 
-        with open(os.path.join(self.cachepath,'code.py'),'w') as outfile:
+        with open(os.path.join(self.cachepath(frame_range),'code.py'),'w') as outfile:
             outfile.write(inspect.getsource(self.__class__))
 
         self.run(frame_range)
 
-    @property
-    def cachepath(self):
-        return os.path.join('results',str(abs(hash(inspect.getsource(self.__class__)))))
+    def cachepath(self,frame_range):
+        return os.path.join('results',str(abs(hash(inspect.getsource(self.__class__)))) + ('.%d.%d' % frame_range))
 
 #################
 #  Experiments  #
