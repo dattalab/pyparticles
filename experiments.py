@@ -343,6 +343,95 @@ class RandomWalkFixedNoiseFrozenTrackParallel(Experiment):
 
         self.save_progress(pf,pose_model,datapath,frame_range,means=means)
 
+
+class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
+    # should look a lot like RandomWalkFixedNoise
+    def run(self,frame_range):
+        raw_input('be sure engines are started in git root!')
+
+        datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+
+        num_particles_firststep = 1024*80
+        num_particles = 1024*60
+        cutoff = 1024*30
+
+        lag = 15
+
+        randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
+        subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,0.25,0.01,1e-6,1e-6,1e-6,) + (5.,)*(2+2*3))
+
+        # pose_model = pose_models.PoseModel3()
+        pose_model = pose_models.PoseModel10()
+
+        _build_mousescene(pose_model.scenefilepath)
+        images, xytheta = _load_data(datapath,frame_range)
+
+        pose_model.default_renderer_pose = \
+            pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+        pose_model.default_particle_pose = \
+            pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+
+        import parallel
+        # engines should be started in git root, where this file is
+        dv = parallel.go_parallel(pose_model.scenefilepath,datapath,frame_range)
+        def log_likelihood(stepnum,_,poses):
+            dv.scatter('poses',pose_model.expand_poses(poses),block=True)
+            dv.execute('''likelihoods = ms.get_likelihood(images[%d],particle_data=poses,
+                                                x=xytheta[%d,0],y=xytheta[%d,1],theta=xytheta[%d,2])/2000.'''
+                    % (stepnum,stepnum,stepnum,stepnum),block=True)
+            return dv.gather('likelihoods',block=True)
+
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.AR(
+                    numlags=1,
+                    previous_outputs=(pose_model.default_particle_pose,),
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
+                    ) for itr in range(num_particles_firststep)])
+
+        pf.step(images[0])
+        pf.change_numparticles(num_particles)
+        randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
+        pf.step(images[1])
+
+        # now switch to momentum!
+
+        starters = pf.particles
+
+        propmatrix = np.hstack((2*np.eye(pose_model.particle_pose_tuple_len),-1*np.eye(pose_model.particle_pose_tuple_len)))
+        invwishparams = (20,20*subsequent_randomwalk_noisechol)
+
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.AR(
+                    numlags=2,
+                    initial_obs=(p.track[1],p.track[0]),
+                    baseclass=lambda: pm.Momentum(propmatrix=propmatrix,noiseclass=lambda: pd.InverseWishartNoise(*invwishparams)),
+                ) for p in starters]
+            )
+
+        for i in progprint_xrange(2,lag):
+            pf.step(images[i])
+        self.save_progress(pf,pose_model,datapath,frame_range,means=[])
+
+        # now step with freezing means
+        means = []
+        for i in progprint_xrange(lag,images.shape[0],perline=10):
+            means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
+            print '\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+
+            pf.step(images[i])
+
+            if (i % 5) == 0:
+                self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+
+        self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+
 ### currently busted
 
 class RandomWalkWithInjection(Experiment):
