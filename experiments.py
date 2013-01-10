@@ -360,7 +360,7 @@ class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
         lag = 15
 
         randomwalk_noisechol = np.diag((3.,3.,7.,3.,0.01,2.,2.,10.,) + (20.,)*(2+2*3))
-        subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,0.25,0.01,1e-6,1e-6,1e-6,) + (5.,)*(2+2*3)) / 3.
+        subsequent_randomwalk_noisechol = np.diag((1.5,1.5,3.,0.25,0.01,1e-6,1e-6,1e-6,) + (5.,)*(2+2*3))
 
         # pose_model = pose_models.PoseModel3()
         pose_model = pose_models.PoseModel10()
@@ -403,7 +403,7 @@ class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
         starters = pf.particles
 
         propmatrix = np.hstack((2*np.eye(pose_model.particle_pose_tuple_len),-1*np.eye(pose_model.particle_pose_tuple_len)))
-        invwishparams = (20,20*subsequent_randomwalk_noisechol)
+        invwishparams = (20,20*subsequent_randomwalk_noisechol/4.)
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
