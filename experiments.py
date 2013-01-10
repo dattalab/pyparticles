@@ -402,8 +402,8 @@ class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
 
         starters = pf.particles
 
-        propmatrix = np.hstack((1.5*np.eye(pose_model.particle_pose_tuple_len),-1*np.eye(pose_model.particle_pose_tuple_len)))
-        invwishparams = (20,20*subsequent_randomwalk_noisechol/2.)
+        propmatrix = np.hstack((1.3*np.eye(pose_model.particle_pose_tuple_len),-1*np.eye(pose_model.particle_pose_tuple_len)))
+        invwishparams = (10,10*subsequent_randomwalk_noisechol)
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
