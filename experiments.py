@@ -603,8 +603,8 @@ class MomentumLearnedNoiseParallelSimplified(Experiment):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
         num_particles_firststep = 1024*40
-        num_particles = 1024*20
-        cutoff = 1024*10
+        num_particles = 1024*10
+        cutoff = 1024*5
 
         lag = 15
 
@@ -655,9 +655,9 @@ class MomentumLearnedNoiseParallelSimplified(Experiment):
                     ) for itr in range(num_particles_firststep)])
 
         pf.step(images[0])
-        pf.change_numparticles(num_particles)
         randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
         pf.step(images[1])
+        pf.change_numparticles(num_particles)
 
         ### now switch to momentum!
 
