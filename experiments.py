@@ -425,6 +425,7 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
 
         self.save_progress(pf,pose_model,datapath,frame_range,means=means)
 
+
 class RandomWalkFixedNoiseParallelSimplified(Experiment):
     # combo of previous two
     def run(self,frame_range):
@@ -436,7 +437,7 @@ class RandomWalkFixedNoiseParallelSimplified(Experiment):
         num_particles = 1024*20
         cutoff = 1024*10
 
-        lag = 15
+        lag = 10
 
         pose_model = pose_models.PoseModel_5Joint_origweights_AW()
 

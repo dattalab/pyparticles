@@ -9,8 +9,9 @@ from renderer.renderer import MouseScene
 import particle_filter
 
 max_vert = 500
-dest_dir = '/Users/Alex/Desktop/movies'
-dest_dir2 = '/Users/mattjj/Desktop/movies/side_by_side/'
+# dest_dir = '/Users/Alex/Desktop/movies'
+dest_dir = '/Users/mattjj/Desktop/movie_new'
+dest_dir2 = '/Users/mattjj/Desktop/movies/sidebyside_movie_new/'
 
 def frozentrack_movie(pf_file):
     with open(pf_file,'r') as infile:
