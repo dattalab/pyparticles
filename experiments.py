@@ -409,7 +409,7 @@ class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
                 log_likelihood,
                 [particle_filter.AR(
                     numlags=2,
-                    initial_obs=(p.track[1],p.track[0]),
+                    previous_outputs=(p.track[1],p.track[0]),
                     baseclass=lambda: pm.Momentum(propmatrix=propmatrix,noiseclass=lambda: pd.InverseWishartNoise(*invwishparams)),
                 ) for p in starters]
             )
