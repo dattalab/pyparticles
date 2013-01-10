@@ -607,7 +607,7 @@ class MomentumLearnedNoiseParallelSimplified(Experiment):
         num_particles = 1024*10
         cutoff = 1024*5
 
-        lag = 15
+        lag = 10
 
         pose_model = pose_models.PoseModel_5Joint_origweights_AW()
 
