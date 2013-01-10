@@ -13,7 +13,7 @@ max_vert = 500
 dest_dir = '/Users/mattjj/Desktop/movie_new'
 dest_dir2 = '/Users/mattjj/Desktop/movies/sidebyside_movie_new/'
 
-def frozentrack_movie(pf_file):
+def frozentrack_movie(pf_file,offset=0):
     with open(pf_file,'r') as infile:
         it = cPickle.load(infile)
 
@@ -29,7 +29,7 @@ def frozentrack_movie(pf_file):
 
     track = np.array(means)
     # return movie_sidebyside(track,pose_model,datapath,frame_range)
-    return movie(track,pose_model,datapath,frame_range)
+    return movie(track,pose_model,datapath,frame_range,offset=offset)
 
 def meantrack_movie(pf_file):
     with open(pf_file,'r') as infile:
@@ -66,7 +66,7 @@ def movie_sidebyside(track,pose_model,datapath,frame_range):
         Image.fromarray(np.hstack((images[i][:,::-1].T,posed_mice[i])).astype('uint8')).save(os.path.join(dest_dir2, "%03d.png" % i))
 
 
-def movie(track,pose_model,datapath,frame_range):
+def movie(track,pose_model,datapath,frame_range,offset=0):
     images, xytheta = _load_data(datapath,(frame_range[0],frame_range[0]+track.shape[0]-1))
 
     track2 = track.copy()
@@ -89,7 +89,7 @@ def movie(track,pose_model,datapath,frame_range):
     y_synth = track[:,1]
     theta_synth = track[:,2]
 
-    for i in range(images.shape[0]):
+    for i in range(offset,images.shape[0]):
         I_real = embed_image(images[i], xytheta[i,0], xytheta[i,1], xytheta[i,2], (240,320))
         I_real = np.clip(I_real, 0, max_vert)
         I_real = (I_real.astype('float32')/max_vert)*255.0
