@@ -694,6 +694,107 @@ class MomentumLearnedNoiseParallelSimplified(Experiment):
         self.save_progress(pf,pose_model,datapath,frame_range,means=means)
 
 
+class MomentumLearnedNoiseParallelSuperSimplified(Experiment):
+    def run(self,frame_range):
+        raw_input('be sure engines are started in git root!')
+
+        datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+
+        num_particles_firststep = 1024*40
+        num_particles = 1024*10
+        cutoff = 1024*5
+
+        lag = 10
+
+        pose_model = pose_models.PoseModel_4Joint_origweights_AW()
+
+        variances = {
+            'x':             {'init':3.0,  'subsq':1.5},
+            'y':             {'init':3.0,  'subsq':1.5},
+            'theta_yaw':     {'init':7.0,  'subsq':3.0},
+            'z':             {'init':3.0,  'subsq':0.25},
+            'theta_roll':    {'init':0.01, 'subsq':0.01},
+            's_w':           {'init':2.0,  'subsq':1e-6},
+            's_l':           {'init':2.0,  'subsq':1e-6},
+            's_h':           {'init':1.0,  'subsq':1e-6}
+        }
+        particle_fields = pose_model.ParticlePose._fields
+        joint_names = [j for j in pose_model.ParticlePose._fields if 'psi_' in j]
+        [variances.update({j:{'init':20.0, 'subsq':5.0}}) for j in joint_names]
+
+        randomwalk_noisechol = np.diag([variances[p]['init'] for p in particle_fields])
+        subsequent_randomwalk_noisechol = np.diag([variances[p]['subsq'] for p in particle_fields])
+
+        _build_mousescene(pose_model.scenefilepath)
+        images, xytheta = _load_data(datapath,frame_range)
+
+        pose_model.default_renderer_pose = \
+            pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+        pose_model.default_particle_pose = \
+            pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+
+        import parallel
+        dv = parallel.go_parallel(pose_model.scenefilepath,datapath,frame_range)
+        def log_likelihood(stepnum,_,poses):
+            poses[:,-2] = -np.abs(poses[:,-2])
+            dv.scatter('poses',pose_model.expand_poses(poses),block=True)
+            dv.execute('''likelihoods = ms.get_likelihood(images[%d],particle_data=poses,
+                                                x=xytheta[%d,0],y=xytheta[%d,1],theta=xytheta[%d,2])/2500.'''
+                    % (stepnum,stepnum,stepnum,stepnum),block=True)
+            return dv.gather('likelihoods',block=True)
+
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.AR(
+                    numlags=1,
+                    previous_outputs=(pose_model.default_particle_pose,),
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
+                    ) for itr in range(num_particles_firststep)])
+
+        pf.step(images[0])
+        randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
+        pf.step(images[1])
+        pf.change_numparticles(num_particles)
+
+        ### now switch to momentum!
+
+        starters = pf.particles
+
+        propmatrix = np.hstack((1.25*np.eye(pose_model.particle_pose_tuple_len),-0.25*np.eye(pose_model.particle_pose_tuple_len)))
+        invwishparams = (50,50*subsequent_randomwalk_noisechol)
+
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.AR(
+                    numlags=2,
+                    previous_outputs=(p.track[1],p.track[0]),
+                    baseclass=lambda: pm.Momentum(propmatrix=propmatrix,noiseclass=lambda: pd.InverseWishartNoise(*invwishparams)),
+                ) for p in starters]
+            )
+
+        for i in progprint_xrange(2,lag):
+            pf.step(images[i])
+        self.save_progress(pf,pose_model,datapath,frame_range,means=[])
+
+        # now step with freezing means
+        means = []
+        for i in progprint_xrange(lag,images.shape[0],perline=10):
+            means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
+            print '\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+
+            pf.step(images[i])
+
+            if (i % 10) == 0:
+                self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+
+        self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+
+
 ### currently busted
 
 class RandomWalkWithInjection(Experiment):
