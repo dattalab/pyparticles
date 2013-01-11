@@ -6,10 +6,7 @@ import abc, warnings
 
 from util.general import ibincount
 
-DEBUG = True
-
-# this is a great reference on techniques:
-# http://www.cs.berkeley.edu/~pabbeel/cs287-fa11/slides/particle-filters++_v2.pdf
+DEBUG = False
 
 class ParticleFilter(object):
     def __init__(self,ndim,cutoff,log_likelihood_fn,initial_particles):
@@ -35,17 +32,62 @@ class ParticleFilter(object):
 
         if self._Neff < self.cutoff:
             self._resample(resample_method)
-            resampled = True
-        else:
-            resampled = False
 
         self.numsteps += 1
 
-        return resampled
-
     def change_numparticles(self,newnum,resample_method='lowvariance'):
+        if DEBUG:
+            print 'Changing number of particles...'
         if newnum != len(self.particles):
             self._resample(resample_method,num=newnum)
+
+    @property
+    def _Neff(self):
+        self.weights_norm = np.exp(self.log_weights - np.logaddexp.reduce(self.log_weights))
+        self.weights_norm /= self.weights_norm.sum()
+        Neff = 1./np.sum(self.weights_norm**2)
+
+        self._Neff_history.append((self.numsteps,Neff))
+
+        if DEBUG:
+            print 'Neff: %0.3f' % Neff
+
+        return Neff
+
+    def _resample(self,method,num=None):
+        num = (num if num is not None else len(self.particles))
+
+        assert method in ['lowvariance','independent']
+        if method is 'lowvariance':
+            sources = self._lowvariance_sources(num)
+        if method is 'independent':
+            sources = self._independent_sources(num)
+
+        self.particles = [self.particles[i].copy() for i in sources]
+        self.locs = self.locs[sources] # for resizing
+
+        self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
+        self.weights_norm = np.repeat(1./num, num)
+
+        self._Nsurvive_history.append((self.numsteps,len(np.unique(sources))))
+
+        if DEBUG:
+            print 'Particles surviving after resampling: %d' % self._Nsurvive_history[-1][1]
+
+    def _independent_sources(self,num):
+        return ibincount(np.random.multinomial(num,self.weights_norm))
+
+    def _lowvariance_sources(self,num):
+        r = np.random.rand()/num
+        bins = np.concatenate(((0,),np.cumsum(self.weights_norm)))
+        return ibincount(np.histogram(r+np.linspace(0,1,num,endpoint=False),bins)[0])
+
+    def __getstate__(self):
+        result = self.__dict__.copy()
+        del result['log_likelihood_fn']
+        return result
+
+    ### below here doesn't work yet
 
     def inject_particles(self,particles_to_inject,particle_kwargs={}):
         warnings.warn('untested')
@@ -78,51 +120,6 @@ class ParticleFilter(object):
         self.weights_norm = np.concatenate((self.weights_norm,new_weights_norm))
         self.log_weights = np.concatenate((self.log_weights,new_log_weights))
 
-    @property
-    def _Neff(self):
-        self.weights_norm = np.exp(self.log_weights - np.logaddexp.reduce(self.log_weights))
-        self.weights_norm /= self.weights_norm.sum()
-        Neff = 1./np.sum(self.weights_norm**2)
-
-        self._Neff_history.append((self.numsteps,Neff))
-
-        if DEBUG:
-            print Neff
-
-        return Neff
-
-    def _resample(self,method,num=None):
-        num = (num if num is not None else len(self.particles))
-
-        assert method in ['lowvariance','independent']
-        if method is 'lowvariance':
-            sources = self._lowvariance_sources(num)
-        if method is 'independent':
-            sources = self._independent_sources(num)
-
-        self.particles = [self.particles[i].copy() for i in sources]
-        self.locs = self.locs[sources] # for resizing
-
-        self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
-        self.weights_norm = np.repeat(1./num, num)
-
-        self._Nsurvive_history.append((self.numsteps,len(np.unique(sources))))
-
-        if DEBUG:
-            print self._Nsurvive_history[-1][1]
-
-    def _independent_sources(self,num):
-        return ibincount(np.random.multinomial(num,self.weights_norm))
-
-    def _lowvariance_sources(self,num):
-        r = np.random.rand()/num
-        bins = np.concatenate(((0,),np.cumsum(self.weights_norm)))
-        return ibincount(np.histogram(r+np.linspace(0,1,num,endpoint=False),bins)[0])
-
-    def __getstate__(self):
-        result = self.__dict__.copy()
-        del result['log_likelihood_fn']
-        return result
 
 
 ######################

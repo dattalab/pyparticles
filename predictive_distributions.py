@@ -54,26 +54,6 @@ class NegativeBinomial(PredictiveDistribution): # TODO
 #  Observations  #
 ##################
 
-class FixedNoiseDiagonal(PredictiveDistribution):
-    def __init__(self,scales):
-        self.scales = scales
-
-    def _update_hypparams(self,y):
-        pass
-
-    def _sample(self):
-        return self.scales*np.random.randn(self.scales.shape[0])
-
-    def copy(self):
-        return self
-
-    def __str__(self):
-        return '%s(%s)' % (self.__class__.__name__,self.weights)
-
-    def __repr__(self):
-        return str(self)
-
-
 class FixedNoise(PredictiveDistribution):
     def __init__(self,noisechol):
         self.noisechol = noisechol
@@ -89,6 +69,28 @@ class FixedNoise(PredictiveDistribution):
 
     def __str__(self):
         return '%s(%s)' % (self.__class__.__name__,self.noisechol)
+
+    def __repr__(self):
+        return str(self)
+
+
+class FixedNoiseDiagonal(PredictiveDistribution):
+    'slightly more efficient representation than FixedNoise'
+
+    def __init__(self,scales):
+        self.scales = scales
+
+    def _update_hypparams(self,y):
+        pass
+
+    def _sample(self):
+        return self.scales*np.random.randn(self.scales.shape[0])
+
+    def copy(self):
+        return self
+
+    def __str__(self):
+        return '%s(%s)' % (self.__class__.__name__,self.weights)
 
     def __repr__(self):
         return str(self)
@@ -162,9 +164,8 @@ class MNIWAR(PredictiveDistribution):
         self.K_n = self.Sytyt
 
         try:
-            pass
-            # assert np.allclose(self.sigma_n,self.sigma_n.T) and (np.linalg.eigvals(self.sigma_n) > 0).all()
-            # assert np.allclose(self.K_n,self.K_n.T) and (np.linalg.eigvals(self.K_n) > 0).all()
+            assert np.allclose(self.sigma_n,self.sigma_n.T) and (np.linalg.eigvals(self.sigma_n) > 0).all()
+            assert np.allclose(self.K_n,self.K_n.T) and (np.linalg.eigvals(self.K_n) > 0).all()
         except AssertionError:
             print 'WARNING: particle exploded'
             self._broken = True
@@ -215,21 +216,4 @@ class MNIWAR(PredictiveDistribution):
 
     def __repr__(self):
         return str(self)
-
-
-class NIWNonConjAR(PredictiveDistribution): # TODO
-    # Gibbs steps on copy
-    # normal, normal, inverse wishart
-    # should use an IW class and a Gaussian class that do blocked gibbs
-    # like pyhsmm distribution classes but which take stats, not data, and only
-    # need to draw samples
-    pass
-
-
-class _InvWishartCov(object):
-    pass
-
-
-class _Gaussian(object):
-    pass
 

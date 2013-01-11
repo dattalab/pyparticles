@@ -29,6 +29,31 @@ class Mixture(object):
         return new
 
 
+class Sequence(object):
+    'an element of num_iters_each being negative means it will get called forever'
+    def __init__(self,components,num_iters_each):
+        self.num_iters_left = np.array(num_iters_each,copy=True)
+        self.components = components
+        self._prune_components()
+
+    def sample_next(self,**kwargs):
+        out = self.components[0].sample_next(**kwargs)
+        self.num_iters_left[0] -= 1
+        self._prune_components()
+        return out
+
+    def copy(self):
+        new = self.__new__(self.__class__)
+        new.num_iters_left = self.num_iters_left.copy()
+        new.components = [c.copy for c in self.components]
+        return new
+
+    def _prune_components(self):
+        while self.num_iters_left[0] == 0:
+            self.num_iters_left = self.num_iters_left[1:]
+            self.components = self.components[1:]
+
+
 class Concatenation(object):
     def __init__(self,components,arggetters):
         self.components = components
@@ -44,11 +69,10 @@ class Concatenation(object):
         new.arggetters = self.arggetters
         return new
 
-# TODO TODO sequence
 
-###################
-#  'Dumb' models  #
-###################
+##################
+#  Basic models  #
+##################
 
 class RandomWalk(object):
     def __init__(self,noiseclass):
@@ -64,6 +88,8 @@ class RandomWalk(object):
         return new
 
 
+# TODO sideinfo should done with namedtuples at the AR level, replace elements
+# of the first lag's vectors with the sideinfo
 class SideInfo(RandomWalk):
     def sample_next(self,sideinfo):
         return sideinfo + self.noisesampler.sample_next()
@@ -109,8 +135,20 @@ class _CRPIndexSampler(object):
         return new
 
 
-def CRPSampler(object): # TODO
-    pass
+def CRPSampler(object):
+    def __init__(self,alpha,obs_sampler_factory):
+        self.index_sampler = _CRPIndexSampler(alpha)
+        self.dishes = defaultdict(obs_sampler_factory)
+
+    def sample_next(self):
+        return self.dishes[self.index_sampler.sample_next()]
+
+    def copy(self):
+        new = self.__new__(self.__class__)
+        new.index_sampler = self.index_sampler.copy()
+        new.dishes = defaultdict(self.dishes.default_factory,
+                ((s,o.copy()) for s,o in self.dishes.iteritems()))
+        return new
 
 
 class _CRFIndexSampler(object):
@@ -123,7 +161,7 @@ class _CRFIndexSampler(object):
         return self.meta_table_assignments[restaurant_idx][self.table_samplers[restaurant_idx].sample_next()]
 
     def copy(self):
-        new = self.__new__(_CRFIndexSampler)
+        new = self.__new__(self.__class__)
         new.table_samplers = defaultdict(self.table_samplers.default_factory,
                 ((s,t.copy()) for s,t in self.table_samplers.iteritems()))
         new.meta_table_sampler = self.meta_table_sampler.copy()
