@@ -88,8 +88,6 @@ class RandomWalk(object):
         return new
 
 
-# TODO sideinfo should done with namedtuples at the AR level, replace elements
-# of the first lag's vectors with the sideinfo
 class SideInfo(RandomWalk):
     def sample_next(self,sideinfo):
         return sideinfo + self.noisesampler.sample_next()
@@ -129,7 +127,7 @@ class _CRPIndexSampler(object):
         return np.concatenate((np.bincount(self.assignments),(self.alpha,)))
 
     def copy(self):
-        new = self.__new__(_CRPIndexSampler)
+        new = self.__new__(self.__class__)
         new.alpha = self.alpha
         new.assignments = self.assignments[:]
         return new

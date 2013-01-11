@@ -2,11 +2,11 @@ from __future__ import division
 import numpy as np
 na = np.newaxis
 from collections import deque
-import abc, warnings
+import abc, warnings, inspect
 
 from util.general import ibincount
 
-DEBUG = False
+DEBUG = True
 
 class ParticleFilter(object):
     def __init__(self,ndim,cutoff,log_likelihood_fn,initial_particles):
@@ -18,7 +18,7 @@ class ParticleFilter(object):
 
         self.numsteps = 0
         self.log_weights = np.zeros(len(initial_particles))
-        self.weights_norm = np.ones(len(initial_particles))
+        self.weights_norm = np.repeat(1./len(initial_particles),len(initial_particles))
 
         self._Nsurvive_history = []
         self._Neff_history = []
@@ -55,7 +55,7 @@ class ParticleFilter(object):
         return Neff
 
     def _resample(self,method,num=None):
-        num = (num if num is not None else len(self.particles))
+        num = num if num is not None else len(self.particles)
 
         assert method in ['lowvariance','independent']
         if method is 'lowvariance':
@@ -69,10 +69,11 @@ class ParticleFilter(object):
         self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
         self.weights_norm = np.repeat(1./num, num)
 
-        self._Nsurvive_history.append((self.numsteps,len(np.unique(sources))))
+        num_survived = len(np.unique(sources))
+        self._Nsurvive_history.append((self.numsteps,num_survived))
 
         if DEBUG:
-            print 'Particles surviving after resampling: %d' % self._Nsurvive_history[-1][1]
+            print 'Particles surviving after resampling: %d' % num_survived
 
     def _independent_sources(self,num):
         return ibincount(np.random.multinomial(num,self.weights_norm))
@@ -84,7 +85,9 @@ class ParticleFilter(object):
 
     def __getstate__(self):
         result = self.__dict__.copy()
+        # can't pickle functions, but we'll at least save the source
         del result['log_likelihood_fn']
+        result['log_likelihood_fn_source'] = inspect.getsource(self.log_likelihood_fn)
         return result
 
     ### below here doesn't work yet
@@ -95,7 +98,7 @@ class ParticleFilter(object):
         # model doesn't have much meaning!
 
         # attaches to random histories
-        # need to weight likelihood
+        # need to weight likelihood!
 
         self.particles_were_injected = True
 
@@ -131,7 +134,7 @@ class Particle(object):
     # NOTE: also needs a 'track' instance member
 
     @abc.abstractmethod
-    def sample_next(self,*args,**kwargs):
+    def sample_next(self,**kwargs):
         pass
 
     @abc.abstractmethod
@@ -144,8 +147,8 @@ class BasicParticle(Particle):
         self.sampler = baseclass()
         self.track = []
 
-    def sample_next(self,*args,**kwargs):
-        self.track.append(self.sampler.sample_next(*args,**kwargs))
+    def sample_next(self,**kwargs):
+        self.track.append(self.sampler.sample_next(**kwargs))
         return self.track[-1]
 
     def copy(self):
@@ -169,11 +172,11 @@ class AR(BasicParticle):
         if len(self.lagged_outputs) < numlags:
             self.initial_sampler = initial_baseclass()
 
-    def sample_next(self,*args,**kwargs):
+    def sample_next(self,**kwargs):
         if len(self.lagged_outputs) < self.lagged_outputs.maxlen:
-            out = self.initial_sampler.sample_next(lagged_outputs=self.lagged_outputs,*args,**kwargs)
+            out = self.initial_sampler.sample_next(lagged_outputs=self.lagged_outputs,**kwargs)
         else:
-            out = self.sampler.sample_next(lagged_outputs=self.lagged_outputs,*args,**kwargs)
+            out = self.sampler.sample_next(lagged_outputs=self.lagged_outputs,**kwargs)
         self.lagged_outputs.appendleft(out)
         self.track.append(out)
         return out

@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-import abc
+import abc, copy
 
 from util.stats import sample_mniw, sample_invwishart
 
@@ -32,6 +32,7 @@ class PredictiveDistribution(object):
 ###############
 
 class Poisson(PredictiveDistribution):
+    'NOTE support over {1,2,3,...}'
     def __init__(self,alpha_0,beta_0):
         self.alpha_n = alpha_0
         self.beta_n = beta_0
@@ -47,8 +48,29 @@ class Poisson(PredictiveDistribution):
         return Poisson(self.alpha_n,self.beta_n)
 
 
-class NegativeBinomial(PredictiveDistribution): # TODO
-    pass
+# TODO test
+class NegativeBinomial(PredictiveDistribution):
+    'NOTE support over {1,2,3,...}'
+    # there's no conjugate prior, so we have to do some Gibbs sampling on copy
+    def __init__(self,k_0,theta_0,alpha_0,beta_0):
+        from pybasicbayes.distributions import NegativeBinomial as GibbsNB
+        self._distn = GibbsNB(k_0,theta_0,alpha_0,beta_0)
+        self._history = []
+
+    def _update_hypparams(self,x):
+        pass
+
+    def _sample(self):
+        self._history.append(self._distn.rvs())
+        return self._history[-1]
+
+    def copy(self):
+        from pybasicbayes.distributions import NegativeBinomial as GibbsNB
+        new = self.__new__(self.__class__)
+        new._history = self._history[:]
+        new._distn = GibbsNB(self._distn.k_0,self._distn.theta_0,self._distn.alpha_0,self._distn.beta_0)
+        new._distn.resample(np.array(self._history),niter=5)
+        return new
 
 ##################
 #  Observations  #
@@ -127,7 +149,7 @@ class InverseWishartNoise(PredictiveDistribution):
 
 class MNIWAR(PredictiveDistribution):
     '''Conjugate Matrix-Normal-Inverse-Wishart prior'''
-    def __init__(self,n_0,sigma_0,M,K):
+    def __init__(self,n_0,sigma_0,M,K,raise_linalg_errors=True):
         # hyperparameters
         self.n = n_0
         self.sigma_0 = sigma_0
@@ -146,6 +168,7 @@ class MNIWAR(PredictiveDistribution):
 
         # error handling
         self._broken = False
+        self._raise_linalg_errors = raise_linalg_errors
 
     def _update_hypparams(self,y):
         ylags = self._ylags # gets info passed from previous _sample call, state!
@@ -166,9 +189,12 @@ class MNIWAR(PredictiveDistribution):
         try:
             assert np.allclose(self.sigma_n,self.sigma_n.T) and (np.linalg.eigvals(self.sigma_n) > 0).all()
             assert np.allclose(self.K_n,self.K_n.T) and (np.linalg.eigvals(self.K_n) > 0).all()
-        except AssertionError:
-            print 'WARNING: particle exploded'
-            self._broken = True
+        except AssertionError as e:
+            if self._raise_linalg_errors:
+                raise e
+            else:
+                print 'WARNING: particle exploded'
+                self._broken = True
 
     def _sample(self,lagged_outputs):
         if not self._broken:
@@ -176,11 +202,13 @@ class MNIWAR(PredictiveDistribution):
                 ylags = self._pad_ylags(lagged_outputs)
                 A,sigma = sample_mniw(self.n,self.sigma_n,self.M_n,np.linalg.inv(self.K_n))
                 return A.dot(ylags) + np.linalg.cholesky(sigma).dot(np.random.randn(sigma.shape[0]))
-            except np.linalg.LinAlgError:
-                print 'WARNING: particle broke'
-                self._broken = True
-        return -99999*np.ones(self.M_n.shape[0])
-
+            except np.linalg.LinAlgError as e:
+                if self._raise_linalg_errors:
+                    raise e
+                else:
+                    print 'WARNING: particle broke'
+                    self._broken = True
+                    return -99999*np.ones(self.M_n.shape[0])
 
     def _pad_ylags(self,lagged_outputs):
         ylags = self._ylags
