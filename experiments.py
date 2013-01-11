@@ -736,7 +736,6 @@ class MomentumLearnedNoiseParallelSuperSimplified(Experiment):
         import parallel
         dv = parallel.go_parallel(pose_model.scenefilepath,datapath,frame_range)
         def log_likelihood(stepnum,_,poses):
-            poses[:,-2] = -np.abs(poses[:,-2])
             dv.scatter('poses',pose_model.expand_poses(poses),block=True)
             dv.execute('''likelihoods = ms.get_likelihood(images[%d],particle_data=poses,
                                                 x=xytheta[%d,0],y=xytheta[%d,1],theta=xytheta[%d,2])/2500.'''
