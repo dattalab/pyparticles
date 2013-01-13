@@ -10,7 +10,7 @@ import particle_filter as pf
 
 COLORS = ['r','g','c','m','k']
 
-# TODO clean this thang up!
+# TODO plot mean path in gray!
 
 ##########################
 #  experiment functions  #
