@@ -60,10 +60,11 @@ class Experiment(object):
                         ''' % (self.__class__.__name__, datapath, frame_range, pose_model, datetime.datetime.now())
                         )
 
-        shutil.copy(outfilename,os.path.join('Test Data','current_run'))
+        shutil.copy(outfilename,os.path.join('results','current_run'))
 
     def load_most_recent_progress(self,frame_range):
         warnings.warn('unteseted, unused')
+        raise NotImplementedError, 'outdated, needs new pickle file format'
         most_recent_filename = os.path.join(self.cachepath(frame_range),
                 max([int(x) for x in os.listdir(self.cachepath(frame_range)) if x.isdigit()]))
         with open(os.path.join(self.cachepath(frame_range),most_recent_filename),'r') as infile:
@@ -876,7 +877,7 @@ class OneJoint(Experiment):
 
         for i in progprint_xrange(2,lag):
             pf.step(images[i])
-        self.save_progress(pf,pose_model,datapath,frame_range,means=[])
+        self.save_progress(pf,pose_model,datapath,frame_range,means=[],ancestor_counts=[])
 
         # now step with freezing means
         means, ancestor_counts = [], []
@@ -890,9 +891,9 @@ class OneJoint(Experiment):
             pf.step(images[i])
 
             if (i % 10) == 0:
-                self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+                self.save_progress(pf,pose_model,datapath,frame_range,means=means,ancestor_counts=ancestor_counts)
 
-        self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+        self.save_progress(pf,pose_model,datapath,frame_range,means=means,ancestor_counts=ancestor_counts)
 
 ### currently busted
 
