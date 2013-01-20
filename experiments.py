@@ -880,20 +880,16 @@ class OneJoint(Experiment):
         self.save_progress(pf,pose_model,datapath,frame_range,means=[],ancestor_counts=[])
 
         # now step with freezing means
-        means, ancestor_counts = [], []
+        traces = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
-            num_ancestors = len(np.unique([p.track[i-15][0] for p in pf.particles]))
-            ancestor_counts.append(num_ancestors)
-            means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
-            print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,num_ancestors)
+            traces.append((i,[p.track[-lag:] for p in pf.particles]))
 
             pf.step(images[i])
 
             if (i % 10) == 0:
-                self.save_progress(pf,pose_model,datapath,frame_range,means=means,ancestor_counts=ancestor_counts)
+                self.save_progress(pf,pose_model,datapath,frame_range,traces=traces)
 
-        self.save_progress(pf,pose_model,datapath,frame_range,means=means,ancestor_counts=ancestor_counts)
+        self.save_progress(pf,pose_model,datapath,frame_range,traces=traces)
 
 ### currently busted
 
