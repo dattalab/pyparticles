@@ -802,8 +802,8 @@ class OneJoint(Experiment):
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
         num_particles_firststep = 1024*40
-        num_particles = 1024*20
-        cutoff = 1024*10
+        num_particles = 1024*30
+        cutoff = 1024*15
 
         lag = 10
 
