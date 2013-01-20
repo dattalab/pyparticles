@@ -69,7 +69,6 @@ class PoseModelBase(object):
             for f in self.ParticlePose._fields])
 
     # namedtuples break pickling!
-
     def __getstate__(self):
         return {
                 '_default_indices':self._default_indices,
@@ -152,6 +151,7 @@ class PoseModel2(PoseModelBase):
 
         super(PoseModel3,self).__init__()
 
+
 class PoseModel3(PoseModelBase):
     '''
     five joints, not six as in Model2
@@ -185,6 +185,7 @@ class PoseModel3(PoseModelBase):
                 **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
         super(PoseModel3,self).__init__()
+
 
 class PoseModel_5Joint_origweights_AW(PoseModelBase):
     '''
@@ -310,3 +311,32 @@ class PoseModel10(PoseModelBase):
                 **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
         super(PoseModel10,self).__init__()
+
+class OneJoint(PoseModelBase):
+    __metaclass__ = PoseModelMetaclass
+
+    scenefilepath = "renderer/data/mouse_mesh_low_poly3.npz"
+
+    ParticlePose = namedtuple(
+            'ParticlePose',
+            ['x','y','theta_yaw',
+             'z','theta_roll','s_w','s_l','s_h',
+             'psi_y3','psi_z3'])
+
+    RendererPose = namedtuple(
+            'RendererPose',
+            ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
+             ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
+
+    del i,v
+
+    def __init__(self):
+        jr = np.load(self.scenefilepath)['joint_rotations']
+        self.default_renderer_pose = self.RendererPose(
+                x=0.,y=0.,z=0.,
+                theta_yaw=0.,theta_roll=0.,
+                s_w=18.,s_l=18.,s_h=200.,
+                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+
+        super(OneJoint,self).__init__()
+
