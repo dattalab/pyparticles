@@ -861,8 +861,9 @@ class OneJoint(Experiment):
 
         starters = pf.particles
 
+        # TODO tune these
         propmatrix = np.hstack((1.25*np.eye(pose_model.particle_pose_tuple_len),-0.25*np.eye(pose_model.particle_pose_tuple_len)))
-        invwishparams = (50,50*subsequent_randomwalk_noisechol)
+        invwishparams = (30,30*subsequent_randomwalk_noisechol)
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
@@ -877,9 +878,8 @@ class OneJoint(Experiment):
 
         for i in progprint_xrange(2,lag):
             pf.step(images[i])
-        self.save_progress(pf,pose_model,datapath,frame_range,means=[],ancestor_counts=[])
 
-        # now step with freezing means
+        # now step with freezing traces
         traces = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             traces.append((i,[p.track[-lag:] for p in pf.particles]))
