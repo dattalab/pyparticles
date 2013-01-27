@@ -340,3 +340,43 @@ class OneJoint(PoseModelBase):
 
         super(OneJoint,self).__init__()
 
+
+class ThreeJoints(PoseModelBase):
+    __metaclass__ = PoseModelMetaclass
+
+    scenefilepath = "renderer/data/mouse_mesh_low_poly-1-20-2013.npz"
+
+    ParticlePose = namedtuple(
+            'ParticlePose',
+            ['x','y','theta_yaw',
+             'z','theta_roll','s_w','s_l','s_h',
+             'psi_y3','psi_z3','psi_z5']) # NOTE y3 is really y3 plus y4
+
+    RendererPose = namedtuple(
+            'RendererPose',
+            ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
+             ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
+
+    del i,v
+
+    def expand_poses(self,poses):
+        expanded = np.empty((poses.shape[0],self.renderer_pose_tuple_len))
+        expanded[:,self._default_indices] = np.array(self.default_renderer_pose)[self._default_indices]
+        expanded[:,self._expand_indices] = poses
+
+        psi_y3_index, psi_y4_index = \
+                self.RendererPose._fields.index('psi_y3'), self.RendererPose._fields.index('psi_y4')
+        expanded[:,psi_y3_index] /= 2
+        expanded[:,psi_y4_index] = expanded[:,psi_y3_index]
+
+        return expanded
+
+    def __init__(self):
+        jr = np.load(self.scenefilepath)['joint_rotations']
+        self.default_renderer_pose = self.RendererPose(
+                x=0.,y=0.,z=0.,
+                theta_yaw=0.,theta_roll=0.,
+                s_w=18.,s_l=18.,s_h=200.,
+                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+
+        super(ThreeJoints,self).__init__()
