@@ -6,6 +6,7 @@ from copy import deepcopy
 import numpy as np
 from scipy.interpolate import Rbf, interp1d
 from load_data import *
+import qbp
 
 # Load in our mouse model
 root_dir = "/Users/Alex/Code/hsmm-particlefilters/renderer"
@@ -126,3 +127,8 @@ behavior_dir = "/Users/Alex/Dropbox/Science/Datta lab/Posture Tracking/test data
 images = load_behavior_data(behavior_dir, num_frames, "images")
 spine_range = np.r_[35:45]
 spines = np.median(images[:,spine_range,:], axis=1)
+
+
+# Let's dimensionally reduce the spine!
+all_spines = np.concatenate((spine_vert, spine_hrz, spine_len), axis=1)
+track, pcaNode = qbp.dimensionally_reduce(all_spines, output_dim=0.9999, whiten=False)
