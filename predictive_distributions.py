@@ -55,8 +55,8 @@ class NegativeBinomial(PredictiveDistribution): # TODO
 ##################
 
 class FixedNoiseDiagonal(PredictiveDistribution):
-    def __init__(self,scales):
-        self.scales = scales
+    def __init__(self,variances):
+        self.scales = np.sqrt(variances)
 
     def _update_hypparams(self,y):
         pass
