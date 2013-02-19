@@ -189,6 +189,36 @@ class AR(BasicParticle):
             new.initial_sampler = self.initial_sampler.copy()
         return new
 
+
+class LimitedAR(AR):
+    def __init__(self,minmaxpairs,*args,**kwargs):
+        super(LimitedAR,self).__init__(*args,**kwargs)
+        mins, maxes = map(np.array,zip(*minmaxpairs))
+        self.limitfunc = lambda x: np.clip(x,mins,maxes)
+
+    def sample_next(self,*args,**kwargs):
+        if len(self.lagged_outputs) < self.lagged_outputs.maxlen:
+            out = self.initial_sampler.sample_next(lagged_outputs=self.lagged_outputs,*args,**kwargs)
+        else:
+            out = self.sampler.sample_next(lagged_outputs=self.lagged_outputs,*args,**kwargs)
+
+        out = self.limitfunc(out)
+
+        self.lagged_outputs.appendleft(out)
+        self.track.append(out)
+        return out
+
+    def copy(self):
+        new = super(LimitedAR,self).copy()
+        new.limitfunc = self.limitfunc
+        return new
+
+    def __getstate__(self):
+        dct = self.__dict__.copy()
+        del dct['limitfunc']
+        return dct
+
+
 ###############
 #  Utilities  #
 ###############

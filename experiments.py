@@ -891,6 +891,102 @@ class OneJoint(Experiment):
 
         self.save_progress(pf,pose_model,datapath,frame_range,traces=traces)
 
+
+class ThreeJoints(Experiment):
+    def run(self,frame_range):
+        raw_input('be sure engines are started in git root!')
+
+        datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+
+        num_particles_firststep = 1024*40
+        num_particles = 1024*30
+        cutoff = 1024*15
+
+        lag = 10
+
+        pose_model = pose_models.ThreeJoints()
+
+        variances = {
+            'x':             {'init':3.0,  'subsq':2.0},
+            'y':             {'init':3.0,  'subsq':2.0},
+            'theta_yaw':     {'init':7.0,  'subsq':3.0},
+            'z':             {'init':3.0,  'subsq':0.25},
+            'theta_roll':    {'init':0.01, 'subsq':0.01},
+            's_w':           {'init':2.0,  'subsq':1e-1},
+            's_l':           {'init':2.0,  'subsq':1e-1},
+            's_h':           {'init':1.0,  'subsq':1e-1}
+        }
+        particle_fields = pose_model.ParticlePose._fields
+        joint_names = [j for j in pose_model.ParticlePose._fields if 'psi_' in j]
+        [variances.update({j:{'init':20.0, 'subsq':5.0}}) for j in joint_names]
+        randomwalk_noisechol = np.diag([variances[p]['init'] for p in particle_fields])
+        subsequent_randomwalk_noisechol = np.diag([variances[p]['subsq'] for p in particle_fields])
+
+        _build_mousescene(pose_model.scenefilepath)
+        images, xytheta = _load_data(datapath,frame_range)
+
+        pose_model.default_renderer_pose = \
+            pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+        pose_model.default_particle_pose = \
+            pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
+
+        import parallel
+        dv = parallel.go_parallel(pose_model.scenefilepath,datapath,frame_range)
+        def log_likelihood(stepnum,_,poses):
+            dv.scatter('poses',pose_model.expand_poses(poses),block=True)
+            dv.execute('''likelihoods = ms.get_likelihood(images[%d],particle_data=poses,
+                                                x=xytheta[%d,0],y=xytheta[%d,1],theta=xytheta[%d,2])/4000.'''
+                    % (stepnum,stepnum,stepnum,stepnum),block=True)
+            return dv.gather('likelihoods',block=True)
+
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.LimitedAR(
+                    numlags=1,
+                    minmaxipars=[(0,320),(0,240),(-np.inf,np.inf),(-60,200),(-30,30),(-np.inf,np.inf),(-np.inf,np.inf),(-np.inf,np.inf),(-30,30),(-20,50),(-50,20)],
+                    previous_outputs=(pose_model.default_particle_pose,),
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
+                    ) for itr in range(num_particles_firststep)])
+
+        # do the first few
+        pf.step(images[0])
+        pf.step(images[1])
+        pf.change_numparticles(num_particles)
+
+        starters = pf.particles
+
+        propmatrix = np.hstack((1.25*np.eye(pose_model.particle_pose_tuple_len),-0.25*np.eye(pose_model.particle_pose_tuple_len)))
+
+        pf = particle_filter.ParticleFilter(
+                pose_model.particle_pose_tuple_len,
+                cutoff,
+                log_likelihood,
+                [particle_filter.LimitedAR(
+                    numlags=2,
+                    minmaxipars=[(0,320),(0,240),(-np.inf,np.inf),(-60,200),(-30,30),(-np.inf,np.inf),(-np.inf,np.inf),(-np.inf,np.inf),(-30,30),(-20,50),(-50,20)],
+                    previous_outputs=(p.track[1],p.track[0]),
+                    baseclass=lambda: pm.Momentum(propmatrix=propmatrix,noiseclass=lambda: pd.FixedNoise(subsequent_randomwalk_noisechol))
+                ) for p in starters]
+            )
+
+        for i in progprint_xrange(2,lag):
+            pf.step(images[i])
+
+        # now step with freezing traces
+        traces = []
+        for i in progprint_xrange(lag,images.shape[0],perline=10):
+            traces.append((i,[p.track[-lag:] for p in pf.particles]))
+            print 'unique: %d' % len(np.unique([p.track[-lag] for p in pf.particles]))
+
+            pf.step(images[i])
+
+            if (i % 10) == 0:
+                self.save_progress(pf,pose_model,datapath,frame_range,traces=traces)
+
+        self.save_progress(pf,pose_model,datapath,frame_range,traces=traces)
+
 ### currently busted
 
 class RandomWalkWithInjection(Experiment):

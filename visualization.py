@@ -11,7 +11,7 @@ import particle_filter
 max_vert = 500
 # dest_dir = '/Users/Alex/Desktop/movies'
 dest_dir = '/Users/mattjj/Desktop/movie_new'
-dest_dir2 = '/Users/mattjj/Desktop/movies/sidebyside_movie_new/'
+dest_dir2 = '/Users/mattjj/Desktop/sidebyside_movie_new/'
 
 # Whenever you see "pf_file", it is operating on the named pickled files in e.g. 
 # results/3245470323142455654.6335/101
@@ -30,8 +30,8 @@ def frozentrack_movie(pf_file,offset=0):
             means = it['means']
 
     track = np.array(means)
-    # return movie_sidebyside(track,pose_model,datapath,frame_range)
-    return movie(track,pose_model,datapath,frame_range,offset=offset)
+    return movie_sidebyside(track,pose_model,datapath,frame_range)
+    # return movie(track,pose_model,datapath,frame_range,offset=offset)
 
 def meantrack_movie(pf_file):
     with open(pf_file,'r') as infile:
@@ -64,8 +64,10 @@ def movie_sidebyside(track,pose_model,datapath,frame_range):
             theta=xytheta[:,2],
             return_posed_mice=True)[1]
 
+    scaling = posed_mice.max()
+
     for i in range(len(posed_mice)):
-        Image.fromarray(np.hstack((images[i][:,::-1].T,posed_mice[i])).astype('uint8')).save(os.path.join(dest_dir2, "%03d.png" % i))
+        Image.fromarray((np.hstack((images[i][:,::-1].T,posed_mice[i]))/scaling*255.0).astype('uint8')).save(os.path.join(dest_dir2, "%03d.png" % i))
 
 
 def movie(track,pose_model,datapath,frame_range,offset=0):
@@ -82,7 +84,6 @@ def movie(track,pose_model,datapath,frame_range,offset=0):
             y=0,
             theta=xytheta[:,2],
             return_posed_mice=True)[1]
-
 
     for i in range(len(posed_mice)):
         posed_mice[i] = posed_mice[i][::-1].T

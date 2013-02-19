@@ -78,9 +78,9 @@ class Joint(object):
 
 class LinearJointChain(object):
 	"""A list of joints that knows a bit about forward kinematics"""
-	def __init__(self, listOfJoints=[]):
+	def __init__(self, listOfJoints=None):
 		super(LinearJointChain, self).__init__()
-		self.joints = listOfJoints
+		self.joints = listOfJoints if listOfJoints is not None else []
 
 	def add_joint(self, joint):
 		self.joints.append(joint)
