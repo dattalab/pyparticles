@@ -13,6 +13,8 @@ max_vert = 500
 dest_dir = '/Users/mattjj/Desktop/movie_new'
 dest_dir2 = '/Users/mattjj/Desktop/movies/sidebyside_movie_new/'
 
+# Whenever you see "pf_file", it is operating on the named pickled files in e.g. 
+# results/3245470323142455654.6335/101
 def frozentrack_movie(pf_file,offset=0):
     with open(pf_file,'r') as infile:
         it = cPickle.load(infile)
