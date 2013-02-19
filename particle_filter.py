@@ -104,6 +104,8 @@ class ParticleFilter(object):
 
         self.log_weights = np.repeat(np.logaddexp.reduce(self.log_weights) - np.log(num),num)
         self.weights_norm = np.repeat(1./num, num)
+        if len(self._locs) != len(self.particles):
+            self._locs = np.empty((len(self.particles),self._locs.shape[1]))
 
         self._Nsurvive_history.append((self.numsteps,len(np.unique(sources))))
 
