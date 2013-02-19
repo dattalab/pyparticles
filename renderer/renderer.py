@@ -419,7 +419,7 @@ class MouseScene(object):
         uniform float theta_yaw;
         uniform float theta_roll;
         uniform vec2 height_range;
-
+        
         uniform vec3 rotation[${num_joints}]; // rotations on each joint
         uniform vec3 translation[${num_joints}]; // translations of each joint from the previous
         uniform mat4 bindingMatrixInverse[${num_joints}]; // the inverse binding matrix
