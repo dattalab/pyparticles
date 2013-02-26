@@ -114,6 +114,7 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
         # to "renderer poses". This is only important because we don't propose
         # over every degree of freedom in our model. 
         def log_likelihood(stepnum,im,poses):
+            return mp.get_likelihood()
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
                 x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/2000.
 

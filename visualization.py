@@ -10,12 +10,15 @@ import particle_filter
 
 max_vert = 500
 # dest_dir = '/Users/Alex/Desktop/movies'
-dest_dir = '/Users/mattjj/Desktop/movie_new'
-dest_dir2 = '/Users/mattjj/Desktop/sidebyside_movie_new/'
+# dest_dir = '/Users/mattjj/Desktop/movie_new'
+dest_dir = "/home/dattalab/movies"
+dest_dir2 = "/home/dattalab/movies"
+# dest_dir2 = '/Users/mattjj/Desktop/sidebyside_movie_new/'
 
 # Whenever you see "pf_file", it is operating on the named pickled files in e.g. 
 # results/3245470323142455654.6335/101
 def frozentrack_movie(pf_file,offset=0):
+
     with open(pf_file,'r') as infile:
         it = cPickle.load(infile)
 
@@ -30,7 +33,8 @@ def frozentrack_movie(pf_file,offset=0):
             means = it['means']
 
     track = np.array(means)
-    return movie_sidebyside(track,pose_model,datapath,frame_range)
+    # return movie_sidebyside(track,pose_model,datapath,frame_range)
+    return movie_sidebyside_cuda(track,pose_model,datapath,frame_range)
     # return movie(track,pose_model,datapath,frame_range,offset=offset)
 
 def meantrack_movie(pf_file):
@@ -67,6 +71,57 @@ def movie_sidebyside(track,pose_model,datapath,frame_range):
     scaling = posed_mice.max()
 
     for i in range(len(posed_mice)):
+        Image.fromarray((np.hstack((images[i][:,::-1].T,posed_mice[i]))/scaling*255.0).astype('uint8')).save(os.path.join(dest_dir2, "%03d.png" % i))
+
+def movie_sidebyside_cuda(track,pose_model,datapath,frame_range):
+    import pymouse
+    from MouseData import MouseData
+    from MousePoser import MousePoser
+
+    # images, xytheta = _load_data(datapath,(frame_range[0],frame_range[0]+track.shape[0]-1))
+
+    m = MouseData(scenefile=os.path.abspath(pose_model.scenefilepath))
+    mp = MousePoser(mouseModel=m, maxNumBlocks=10, imageSize=(64,64))
+
+    # Load in our real data, extracted from the Kinect
+    mm = pymouse.Mousemodel(datapath, 
+                            n=np.max(frame_range),
+                            image_size=(mp.resolutionY,mp.resolutionX))
+    mm.load_data()
+    mm.clean_data(normalize_images = False, filter_data=True)
+    images = mm.images
+
+    # Find the nearest multiple of numMicePerPass, and pad the track
+    numMiceToPose = int(np.ceil(len(track)/float(mp.numMicePerPass))*mp.numMicePerPass)
+    track2 = np.zeros((numMiceToPose,track.shape[1]), dtype='float32')
+    track2[:len(track)] = track.copy()
+    track2[:,:2] = 0
+
+    # ==============================
+
+    joint_angles = mp.baseJointRotations_cpu + pose_model.get_joint_rotations(track2)
+    scales = pose_model.get_scales(track2)
+    offsets = pose_model.get_offsets(track2)
+    rotations = pose_model.get_rotations(track2)
+
+    numPasses = int(np.ceil(numMiceToPose / mp.numMicePerPass))
+    posed_mice = np.zeros((numPasses*mp.numMicePerPass,mp.resolutionY, mp.resolutionX), dtype='float32')
+    for i in range(numPasses):
+        start = i*mp.numMicePerPass
+        end = start+mp.numMicePerPass
+        l,p = mp.get_likelihoods(joint_angles=joint_angles[start:end], \
+                                scales=scales[start:end], \
+                                offsets=offsets[start:end], \
+                                rotations=rotations[start:end], \
+                                real_mouse_image=None, \
+                                save_poses=True)
+        posed_mice[i*mp.numMicePerPass:i*mp.numMicePerPass+mp.numMicePerPass] = p
+
+    # ==============================
+
+    scaling = max(posed_mice.max(), images.max())
+
+    for i in range(len(track)):
         Image.fromarray((np.hstack((images[i][:,::-1].T,posed_mice[i]))/scaling*255.0).astype('uint8')).save(os.path.join(dest_dir2, "%03d.png" % i))
 
 

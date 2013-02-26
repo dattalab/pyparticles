@@ -381,7 +381,7 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
 
         _build_mousescene(pose_model.scenefilepath)
         images, xytheta = _load_data(datapath,frame_range)
-
+        
         pose_model.default_renderer_pose = \
             pose_model.default_renderer_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
         pose_model.default_particle_pose = \
