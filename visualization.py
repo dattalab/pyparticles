@@ -1,4 +1,5 @@
 from __future__ import division
+import os
 import numpy as np
 na = np.newaxis
 import Image, cPickle, os, shutil
@@ -34,7 +35,7 @@ def frozentrack_movie(pf_file,offset=0):
 
     track = np.array(means)
     # return movie_sidebyside(track,pose_model,datapath,frame_range)
-    return movie_sidebyside_cuda(track,pose_model,datapath,frame_range)
+    return movie_sidebyside_cuda(track,pose_model,datapath,frame_range, offset=offset)
     # return movie(track,pose_model,datapath,frame_range,offset=offset)
 
 def meantrack_movie(pf_file):
@@ -72,6 +73,7 @@ def movie_sidebyside(track,pose_model,datapath,frame_range):
 
     for i in range(len(posed_mice)):
         Image.fromarray((np.hstack((images[i][:,::-1].T,posed_mice[i]))/scaling*255.0).astype('uint8')).save(os.path.join(dest_dir2, "%03d.png" % i))
+    
 
 def movie_sidebyside_cuda(track,pose_model,datapath,frame_range):
     import pymouse
@@ -89,13 +91,13 @@ def movie_sidebyside_cuda(track,pose_model,datapath,frame_range):
                             image_size=(mp.resolutionY,mp.resolutionX))
     mm.load_data()
     mm.clean_data(normalize_images = False, filter_data=True)
-    images = mm.images
+    images = mm.images[frame_range[0]:]
 
     # Find the nearest multiple of numMicePerPass, and pad the track
     numMiceToPose = int(np.ceil(len(track)/float(mp.numMicePerPass))*mp.numMicePerPass)
-    track2 = np.zeros((numMiceToPose,track.shape[1]), dtype='float32')
+    track2 = np.zeros((numMiceToPose, pose_model.particle_pose_tuple_len), dtype='float32')
     track2[:len(track)] = track.copy()
-    track2[:,:2] = 0
+
 
     # ==============================
 

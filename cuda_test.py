@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.append("/home/dattalab/Code/cuda-tests")
 
+from collections import namedtuple
 import numpy as np
 
 import pymouse
@@ -9,6 +10,7 @@ from MouseData import MouseData
 from MousePoser import MousePoser
 
 from experiments import Experiment
+from pose_models import PoseModelBase, PoseModelMetaclass
 import pose_models
 import particle_filter
 import predictive_models as pm
@@ -39,12 +41,13 @@ class RandomWalkFixedNoiseCUDA(Experiment):
             'theta_yaw':     {'init':7.0,  'subsq':3.0},
             'z':             {'init':3.0,  'subsq':0.25},
             'theta_roll':    {'init':0.01, 'subsq':0.01},
-            's_w':           {'init':0.025,  'subsq':1e-9},
-            's_l':           {'init':0.025,  'subsq':1e-9},
-            's_h':           {'init':0.025,  'subsq':1e-9} }
+            's_w':           {'init':2.0,  'subsq':1e-6},
+            's_l':           {'init':1e-12,  'subsq':1e-12},
+            's_h':           {'init':1.0,  'subsq':1e-6}
+        }        
         particle_fields = pose_model.ParticlePose._fields
         joint_names = [j for j in particle_fields if 'psi_' in j]
-        [variances.update({j:{'init':5.0, 'subsq':1.0}}) for j in joint_names]
+        [variances.update({j:{'init':20.0, 'subsq':5.0}}) for j in joint_names]
 
         randomwalk_noisechol = np.diag([variances[p]['init'] for p in particle_fields])
         subsequent_randomwalk_noisechol = np.diag([variances[p]['subsq'] for p in particle_fields])
@@ -61,16 +64,16 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         # Then, we define how many particles we want to run
         # (particles are higher for the first step to start with a good guess)
         # numMicePerPass = 2560 or something, usually
-        num_particles_firststep = mp.numMicePerPass*10
+        num_particles_firststep = mp.numMicePerPass*40
         num_particles = mp.numMicePerPass*4
-        cutoff = mp.numMicePerPass*4
+        cutoff = mp.numMicePerPass*2
 
         # Load in our real data, extracted from the Kinect
         mm = pymouse.Mousemodel(datapath, 
                                 n=np.max(frame_range),
                                 image_size=(mp.resolutionY,mp.resolutionX))
         mm.load_data()
-        mm.clean_data(normalize_images = False, filter_data=True)
+        mm.clean_data(normalize_images=False, filter_data=True)
 
         # This is a tiny tiny hack, where we use our knowledge of where we THINK
         # the mouse is to start off our particle filter. 
@@ -81,6 +84,11 @@ class RandomWalkFixedNoiseCUDA(Experiment):
             pose_model.default_renderer_pose._replace(theta_yaw=theta[0],x=0,y=0)
         pose_model.default_particle_pose = \
             pose_model.default_particle_pose._replace(theta_yaw=theta[0],x=0,y=0)
+
+        # We pre-allocate the array to save the proposed particles. It's a huge array, but whatever, whatever, whatever.
+        num_regular_steps = images.shape[0] - lag
+        particle_data = np.zeros((num_regular_steps, pose_model.particle_pose_tuple_len), dtype='float32')
+
 
         # This is an interface between the CUDA poser/rasterizer and the particle filter,
         # that helps translate how good each guess is between the two classes.
@@ -112,12 +120,18 @@ class RandomWalkFixedNoiseCUDA(Experiment):
                 likelihoods[i*mp.numMicePerPass:i*mp.numMicePerPass+mp.numMicePerPass] = l
                 posed_mice[i*mp.numMicePerPass:i*mp.numMicePerPass+mp.numMicePerPass] = p
 
-            q = posed_mice[np.argmax(likelihoods)]
-            q = np.hstack((im[:,::-1].T, q))
+            idx = np.argsort(likelihoods)[::-1]
+            q = posed_mice[idx[0]]
+            r = posed_mice[idx[1]]
+            s = posed_mice[idx[2]]
+            q = np.hstack((im[:,::-1].T, q, r, s))
             q = 254.0*q/q.max()
             import Image
             Image.fromarray(q.astype('uint8')).save("/home/dattalab/poses/%d.png" % stepnum)
-            return likelihoods / (1000.0**2.0)
+
+            # import pdb; pdb.set_trace()
+
+            return likelihoods / 2000.0
 
         # Okay, initialize the particle filter (we're using a random walk particle filter)
         pf = particle_filter.ParticleFilter(
@@ -148,19 +162,23 @@ class RandomWalkFixedNoiseCUDA(Experiment):
 
         # Now, this is the bulk of the work. Run through all frames, saving the means
         # at every 5 frames
-        means = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
-            means.append(np.sum(pf.weights_norm[:,np.newaxis] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
+            particle_data[i-lag] = np.sum(pf.weights_norm[:,np.newaxis] * np.array([p.track[i-lag] for p in pf.particles]), axis=0)
+
             print '\nsaved a mean for index %d with %d unique particles!\n' % \
                     (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
 
             pf.step(images[i])
 
-            if (i % 5) == 0:
-                self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+            if (i % 100) == 0:
+                self.save_progress(pf,pose_model,datapath,frame_range,means=particle_data)
 
         # Save everything out once we're done. The means are the most important part right now!!
-        self.save_progress(pf,pose_model,datapath,frame_range,means=means)
+        self.save_progress(pf,pose_model,datapath,frame_range,means=particle_data)
 
 
-q = RandomWalkFixedNoiseCUDA((100,1000))
+RandomWalkFixedNoiseCUDA((5,8000))
+# RandomWalkFixedNoiseCUDA((1000,2000))
+# RandomWalkFixedNoiseCUDA((2000,3000))
+# RandomWalkFixedNoiseCUDA((3000,4000))
+# RandomWalkFixedNoiseCUDA((4000,5000))
