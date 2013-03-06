@@ -92,13 +92,14 @@ def dumb_momentum_learnednoise():
 
 
 def dumb_randomwalk_fixednoise():
-    noisechol = 30*np.eye(2)
+    noisechol = 10*np.eye(2)
     initial_particles = [
             pf.AR(
                     numlags=1,
                     previous_outputs=[np.zeros(2)],
                     baseclass=lambda: \
-                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol=noisechol))
+                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol=noisechol)),
+                    maxtracklen=10,
                     ) for itr in range(10000)]
 
     def plotfunc(particles,weights):

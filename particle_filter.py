@@ -144,9 +144,9 @@ class Particle(object):
 
 
 class BasicParticle(Particle):
-    def __init__(self,baseclass):
+    def __init__(self,baseclass,maxtracklen=None):
         self.sampler = baseclass()
-        self.track = []
+        self.track = deque(maxlen=maxtracklen)
 
     def sample_next(self,*args,**kwargs):
         self.track.append(self.sampler.sample_next(*args,**kwargs))
@@ -154,7 +154,7 @@ class BasicParticle(Particle):
 
     def copy(self):
         new = self.__new__(self.__class__)
-        new.track = self.track[:] # shallow copy
+        new.track = self.track.__copy__()
         new.sampler = self.sampler.copy()
         return new
 
@@ -166,9 +166,9 @@ class BasicParticle(Particle):
 
 
 class AR(BasicParticle):
-    def __init__(self,numlags,baseclass,previous_outputs=[],initial_baseclass=None):
+    def __init__(self,numlags,baseclass,previous_outputs=[],initial_baseclass=None,maxtracklen=None):
         assert len(previous_outputs) == numlags or initial_baseclass is not None
-        super(AR,self).__init__(baseclass)
+        super(AR,self).__init__(baseclass,maxtracklen)
         self.lagged_outputs = deque(previous_outputs,maxlen=numlags)
         if len(self.lagged_outputs) < numlags:
             self.initial_sampler = initial_baseclass()
