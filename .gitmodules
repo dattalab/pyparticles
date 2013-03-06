@@ -1,3 +1,6 @@
 [submodule "util"]
 	path = util
 	url = git@github.com:mattjj/pymattutil.git
+[submodule "mongowrapper"]
+	path = mongowrapper
+	url = https://github.com/dattalab/mongowrapper.git
