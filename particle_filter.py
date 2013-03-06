@@ -166,11 +166,11 @@ class BasicParticle(Particle):
 
 
 class AR(BasicParticle):
-    def __init__(self,numlags,baseclass,previous_outputs=[],initial_baseclass=None,maxtracklen=None):
-        assert len(previous_outputs) == numlags or initial_baseclass is not None
+    def __init__(self,num_ar_lags,baseclass,previous_outputs=[],initial_baseclass=None,maxtracklen=None):
+        assert len(previous_outputs) == num_ar_lags or initial_baseclass is not None
         super(AR,self).__init__(baseclass,maxtracklen)
-        self.lagged_outputs = deque(previous_outputs,maxlen=numlags)
-        if len(self.lagged_outputs) < numlags:
+        self.lagged_outputs = deque(previous_outputs,maxlen=num_ar_lags)
+        if len(self.lagged_outputs) < num_ar_lags:
             self.initial_sampler = initial_baseclass()
 
     def sample_next(self,*args,**kwargs):

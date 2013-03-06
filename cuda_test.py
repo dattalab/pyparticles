@@ -139,9 +139,10 @@ class RandomWalkFixedNoiseCUDA(Experiment):
                 cutoff,
                 log_likelihood,
                 [particle_filter.AR(
-                    numlags=1,
+                    num_ar_lags=1,
                     previous_outputs=(pose_model.default_particle_pose,),
-                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol)),
+                    maxtracklen=lag+1, # +1 may not be necessary
                     ) for itr in range(num_particles_firststep)])
 
         # Do the first frame (we make a TON of guesses to get a good starting point)
