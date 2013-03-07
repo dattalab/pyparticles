@@ -5,3 +5,4 @@ renderer/data/frame*
 /Test Data
 /results/*
 /requested_results
+*.pdf
