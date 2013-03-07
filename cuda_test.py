@@ -72,8 +72,7 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         # Then, we define how many particles we want to run
         # (particles are higher for the first step to start with a good guess)
         # numMicePerPass = 2560 or something, usually
-        # num_particles_firststep = mp.numMicePerPass*40
-        num_particles_firststep = mp.numMicePerPass*4
+        num_particles_firststep = mp.numMicePerPass*40
         num_particles = mp.numMicePerPass*4
         cutoff = mp.numMicePerPass*2
 
