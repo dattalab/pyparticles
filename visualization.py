@@ -35,7 +35,7 @@ def frozentrack_movie(pf_file,offset=0):
 
     track = np.array(means)
     # return movie_sidebyside(track,pose_model,datapath,frame_range)
-    return movie_sidebyside_cuda(track,pose_model,datapath,frame_range, offset=offset)
+    return movie_sidebyside_cuda(track,pose_model,datapath,frame_range)
     # return movie(track,pose_model,datapath,frame_range,offset=offset)
 
 def meantrack_movie(pf_file):
