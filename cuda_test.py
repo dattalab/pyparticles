@@ -1,8 +1,10 @@
 import sys
 import os
+# HACKY HACK HACKITY HACK FIX THIS YOU DUMMY
 sys.path.append("/home/dattalab/Code/cuda-tests")
 
 from collections import namedtuple
+import inspect, shutil, os, abc, cPickle, datetime, warnings
 import numpy as np
 
 import pymouse
@@ -17,14 +19,20 @@ import predictive_models as pm
 import predictive_distributions as pd
 from util.text import progprint_xrange
 from util.general import joindicts
+import mongowrapper
 
 class RandomWalkFixedNoiseCUDA(Experiment):
+
     # Here's the run function.
     def run(self,frame_range):
+        db = mongowrapper.MongoWrapper(db_name = "behavior", 
+                                collection_name = "particle_filter", 
+                                hostname="washington.hms.harvard.edu", 
+                                username="dattalab", 
+                                password="I8freecheese")
+
         # First things first, we have to figure out where our mouse image data is coming from
         datapath = os.path.abspath(os.path.join(os.path.dirname(__file__),"data"))
-
-
 
         # This helps smooth tracks.
         lag = 15
@@ -64,7 +72,8 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         # Then, we define how many particles we want to run
         # (particles are higher for the first step to start with a good guess)
         # numMicePerPass = 2560 or something, usually
-        num_particles_firststep = mp.numMicePerPass*40
+        # num_particles_firststep = mp.numMicePerPass*40
+        num_particles_firststep = mp.numMicePerPass*4
         num_particles = mp.numMicePerPass*4
         cutoff = mp.numMicePerPass*2
 
@@ -158,9 +167,6 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         pf.change_numparticles(num_particles)
         randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
 
-        # TODO: REWRITE SAVE_PROGRESS TO USE MONGODB STUFF
-        self.save_progress(pf,pose_model,datapath,frame_range,means=[])
-
         # Now, this is the bulk of the work. Run through all frames, saving the means
         # at every 5 frames
         for i in progprint_xrange(lag,images.shape[0],perline=10):
@@ -171,15 +177,44 @@ class RandomWalkFixedNoiseCUDA(Experiment):
 
             pf.step(images[i])
 
-            if (i % 100) == 0:
-                self.save_progress(pf,pose_model,datapath,frame_range,means=particle_data)
+            if (i % 10) == 0:
+                print "Saving out track at iteration %d to MongoDB" % i
+                progress_dict = {"experiment_id": self.cachepath(frame_range),
+                                "iteration":i,
+                                "particle_means":particle_data,
+                                "weights":pf.log_weights,
+                                "num_effective_particles":np.asarray(pf._Neff_history),
+                                "num_surviving_particles":np.asarray(pf._Nsurvive_history),
+                                "num_particles":len(pf.particles),
+                                "proportion_surviving":float(pf._Nsurvive_history[-1][1])/len(pf.particles),
+                                "best_likelihood":pf.log_weights.max(),
+                                "frame_range":frame_range,
+                                "datapath":datapath,
+                                "code": inspect.getsource(self.__class__)}
+                db.save(progress_dict)
 
         # Save everything out once we're done. The means are the most important part right now!!
-        self.save_progress(pf,pose_model,datapath,frame_range,means=particle_data)
+        print "Finished, now saving out our results to MongoDB"
+        progress_dict = {"experiment_id": self.cachepath(frame_range),
+                        "iteration":i,
+                        "particle_means":particle_data,
+                        "weights":pf.log_weights,
+                        "num_effective_particles":np.asarray(pf._Neff_history),
+                        "num_surviving_particles":np.asarray(pf._Nsurvive_history),
+                        "num_particles":len(pf.particles),
+                        "proportion_surviving":float(pf._Nsurvive_history[-1][1])/len(pf.particles),
+                        "best_likelihood":pf.log_weights.max(),
+                        "frame_range":frame_range,
+                        "datapath":datapath,
+                        "code": inspect.getsource(self.__class__)}
+        db.save(progress_dict)
+
+        del db
 
 
-RandomWalkFixedNoiseCUDA((5,8000))
-# RandomWalkFixedNoiseCUDA((1000,2000))
-# RandomWalkFixedNoiseCUDA((2000,3000))
-# RandomWalkFixedNoiseCUDA((3000,4000))
-# RandomWalkFixedNoiseCUDA((4000,5000))
+# HACK HACK
+# SECURITY
+# FIX
+# NOTE
+# TODO
+RandomWalkFixedNoiseCUDA((5,1000))
