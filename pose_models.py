@@ -296,7 +296,7 @@ class PoseModel_5Joint_origweights_AW(PoseModelBase):
 
 class PoseModel_5Joints_XZ_forCUDA(PoseModelBase):
     '''
-    Five joints, with original weights, which could 
+    Five joints, with original weights, which could
     don't propose over theta_roll or first two joints' y angles
     '''
 

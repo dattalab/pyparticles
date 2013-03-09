@@ -27,70 +27,9 @@ class Experiment(object):
     def resume(self):
         raise NotImplementedError
 
-    ### probably shouldn't be overridden
-
-    def save_progress(self,particlefilter,pose_model,datapath,frame_range,**kwargs):
-        dct = joindicts((
-                {
-                'particlefilter':particlefilter,
-                'pose_model':pose_model,
-                'datapath':datapath,
-                'frame_range':frame_range,
-                },
-                kwargs
-            ))
-
-        outfilename = os.path.join(self.cachepath(frame_range),str(particlefilter.numsteps))
-        with open(outfilename,'w') as outfile:
-            cPickle.dump(dct,outfile,protocol=2)
-
-        descripfilename = os.path.join(self.cachepath(frame_range),'description.txt')
-        if not os.path.exists(descripfilename):
-            with open(descripfilename,'w') as outfile:
-                outfile.write(
-                        '''
-        experiment: %s
-        data path: %s
-        frame range: %s
-        pose model: %s
-        start time: %s
-
-        code.py contains the experiment code used to run the experiment; see also experiments.py
-
-                        ''' % (self.__class__.__name__, datapath, frame_range, pose_model, datetime.datetime.now())
-                        )
-
-        shutil.copy(outfilename,os.path.join('results','current_run'))
-
-    def load_most_recent_progress(self,frame_range):
-        warnings.warn('unteseted, unused')
-        raise NotImplementedError, 'outdated, needs new pickle file format'
-        most_recent_filename = os.path.join(self.cachepath(frame_range),
-                max([int(x) for x in os.listdir(self.cachepath(frame_range)) if x.isdigit()]))
-        with open(os.path.join(self.cachepath(frame_range),most_recent_filename),'r') as infile:
-            particlefilter, pose_model, datapath, frame_range = cPickle.load(infile)
-        return particlefilter, pose_model, datapath, frame_range
-
     ### don't override this stuff
 
     def __init__(self,frame_range):
-        print 'results directory: %s' % self.cachepath(frame_range)
-
-        if os.path.exists(self.cachepath(frame_range)):
-            response = raw_input('cache file exists: [o]verwrite, [r]esume, or do [N]othing? ').lower()
-            if response == 'r':
-                self.resume(frame_range)
-            elif response == 'o':
-                shutil.rmtree(self.cachepath(frame_range))
-            else:
-                print 'did nothing'
-                return
-
-        os.makedirs(self.cachepath(frame_range))
-
-        with open(os.path.join(self.cachepath(frame_range),'code.py'),'w') as outfile:
-            outfile.write(inspect.getsource(self.__class__))
-
         self.run(frame_range)
 
     def cachepath(self,frame_range):
