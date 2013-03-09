@@ -10,7 +10,41 @@ import particle_filter as pf
 
 COLORS = ['r','g','c','m','k']
 
-# TODO plot mean path in gray!
+#################
+#  new hotness  #
+#################
+
+def dumb_randomwalk_fixednoise():
+    noisechol = 30*np.eye(2)
+    initial_particles = [
+            pf.AR(
+                    num_ar_lags=1,
+                    previous_outputs=[np.zeros(2)],
+                    baseclass=lambda: \
+                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol=noisechol))
+                    ) for itr in range(10000)]
+
+    def plotfunc(particles,weights):
+        plottopk(particles,weights,5)
+        plotmeanpath(particles,weights)
+
+    return interactive(initial_particles,2500,plotfunc)
+
+def dumb_randomwalk_fixednoise_limited():
+    noisechol = 30*np.eye(2)
+    initial_particles = [
+            pf.LimitedAR(
+                    num_ar_lags=1,
+                    previous_outputs=[np.zeros(2)],
+                    baseclass=lambda: \
+                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol=noisechol))
+                    ) for itr in range(10000)]
+
+    def plotfunc(particles,weights):
+        plottopk(particles,weights,5)
+        plotmeanpath(particles,weights)
+
+    return interactive(initial_particles,2500,plotfunc)
 
 ##########################
 #  experiment functions  #
@@ -28,7 +62,7 @@ def smart():
 
     particle_factory = lambda: \
             pm.AR(
-                    numlags=nlags,
+                    num_ar_lags=nlags,
                     initial_obs=[np.zeros(2) for itr in range(nlags)],
                     baseclass=lambda: \
                             pm.HDPHSMMSampler(
@@ -55,7 +89,7 @@ def dumb_momentum_fixednoise():
     noisechol = 20*np.eye(2)
     particle_factory = lambda: \
             pm.AR(
-                    numlags=2,
+                    num_ar_lags=2,
                     initial_obs=[np.zeros(2) for itr in range(2)],
                     baseclass=lambda: \
                             pm.Momentum(
@@ -76,7 +110,7 @@ def dumb_momentum_learnednoise():
     invwishparams = (10,10.*30*np.eye(2))
     particle_factory = lambda: \
             pm.AR(
-                    numlags=2,
+                    num_ar_lags=2,
                     initial_obs=[np.zeros(2) for itr in range(2)],
                     baseclass=lambda: \
                         pm.Momentum(
@@ -91,28 +125,12 @@ def dumb_momentum_learnednoise():
 
 
 
-def dumb_randomwalk_fixednoise():
-    noisechol = 30*np.eye(2)
-    initial_particles = [
-            pf.AR(
-                    numlags=1,
-                    previous_outputs=[np.zeros(2)],
-                    baseclass=lambda: \
-                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol=noisechol))
-                    ) for itr in range(10000)]
-
-    def plotfunc(particles,weights):
-        plottopk(particles,weights,5)
-        plotmeanpath(particles,weights)
-
-    return interactive(initial_particles,2500,plotfunc)
-
 def dumb_randomwalk_learnednoise():
     num_pseudoobs = 1000
     noisecov = 30**2*np.eye(2) * num_pseudoobs
     initial_particles = [
             pf.AR(
-                    numlags=1,
+                    num_ar_lags=1,
                     previous_outputs=[np.zeros(2)],
                     baseclass=lambda: \
                         pm.RandomWalk(noiseclass=lambda: pd.InverseWishartNoise(num_pseudoobs,noisecov))
