@@ -17,10 +17,20 @@ import predictive_models as pm
 import predictive_distributions as pd
 from util.text import progprint_xrange
 from util.general import joindicts
+import inspect
+
+import mongowrapper
 
 class RandomWalkFixedNoiseCUDA(Experiment):
     # Here's the run function.
     def run(self,frame_range):
+
+        db = mongowrapper.MongoWrapper(db_name = "behavior", 
+                        collection_name = "particle_filter", 
+                        hostname="washington.hms.harvard.edu", 
+                        username="dattalab", 
+                        password="I8freecheese")
+
         # First things first, we have to figure out where our mouse image data is coming from
         datapath = os.path.abspath(os.path.join(os.path.dirname(__file__),"data"))
 
@@ -95,9 +105,10 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         # over every degree of freedom in our model. 
         def log_likelihood(stepnum,im,poses):
             joint_angles = mp.baseJointRotations_cpu + pose_model.get_joint_rotations(poses)
-            scales = pose_model.get_scales(poses)
+            scales = np.clip(0,1,pose_model.get_scales(poses))
             offsets = pose_model.get_offsets(poses)
             rotations = pose_model.get_rotations(poses)
+
             assert np.mod(len(joint_angles), mp.numMicePerPass) == 0, \
                 "Number of particles must be a multiple of the number of mice per pass, %d" % mp.numMicePerPass
 
@@ -157,11 +168,40 @@ class RandomWalkFixedNoiseCUDA(Experiment):
 
             pf.step(images[i])
 
-            if (i % 100) == 0:
-                self.save_progress(pf,pose_model,datapath,frame_range,means=particle_data)
+            if (i % 10) == 0:
+                # self.save_progress(pf,pose_model,datapath,frame_range,means=particle_data)
+                progress_dict = {"experiment_id": self.cachepath(frame_range),
+                    "iteration":i,
+                    "particle_means":particle_data,
+                    "weights":pf.log_weights,
+                    "num_effective_particles":np.asarray(pf._Neff_history),
+                    "num_surviving_particles":np.asarray(pf._Nsurvive_history),
+                    "num_particles":len(pf.particles),
+                    "proportion_surviving":float(pf._Nsurvive_history[-1][1])/len(pf.particles),
+                    "best_likelihood":pf.log_weights.max(),
+                    "frame_range":frame_range,
+                    "datapath":datapath,
+                    "code": inspect.getsource(self.__class__)}
+                db.save(progress_dict)
+
 
         # Save everything out once we're done. The means are the most important part right now!!
-        self.save_progress(pf,pose_model,datapath,frame_range,means=particle_data)
+        # self.save_progress(pf,pose_model,datapath,frame_range,means=particle_data)
+        progress_dict = {"experiment_id": self.cachepath(frame_range),
+            "iteration":i,
+            "particle_means":particle_data,
+            "weights":pf.log_weights,
+            "num_effective_particles":np.asarray(pf._Neff_history),
+            "num_surviving_particles":np.asarray(pf._Nsurvive_history),
+            "num_particles":len(pf.particles),
+            "proportion_surviving":float(pf._Nsurvive_history[-1][1])/len(pf.particles),
+            "best_likelihood":pf.log_weights.max(),
+            "frame_range":frame_range,
+            "datapath":datapath,
+            "code": inspect.getsource(self.__class__),
+            "completed":True}
+        db.save(progress_dict)
+
 
 
 RandomWalkFixedNoiseCUDA((5,1000))
