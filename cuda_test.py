@@ -24,8 +24,6 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         # First things first, we have to figure out where our mouse image data is coming from
         datapath = os.path.abspath(os.path.join(os.path.dirname(__file__),"data"))
 
-
-
         # This helps smooth tracks.
         lag = 15
 
@@ -41,7 +39,7 @@ class RandomWalkFixedNoiseCUDA(Experiment):
             'theta_yaw':     {'init':7.0,  'subsq':3.0},
             'z':             {'init':3.0,  'subsq':0.25},
             'theta_roll':    {'init':0.01, 'subsq':0.01},
-            's_w':           {'init':2.0,  'subsq':1e-6},
+            's_w':           {'init':0.025,  'subsq':1e-6},
             's_l':           {'init':1e-12,  'subsq':1e-12},
             's_h':           {'init':1.0,  'subsq':1e-6}
         }        
@@ -64,7 +62,7 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         # Then, we define how many particles we want to run
         # (particles are higher for the first step to start with a good guess)
         # numMicePerPass = 2560 or something, usually
-        num_particles_firststep = mp.numMicePerPass*40
+        num_particles_firststep = mp.numMicePerPass*8
         num_particles = mp.numMicePerPass*4
         cutoff = mp.numMicePerPass*2
 
@@ -100,38 +98,27 @@ class RandomWalkFixedNoiseCUDA(Experiment):
             scales = pose_model.get_scales(poses)
             offsets = pose_model.get_offsets(poses)
             rotations = pose_model.get_rotations(poses)
-
             assert np.mod(len(joint_angles), mp.numMicePerPass) == 0, \
                 "Number of particles must be a multiple of the number of mice per pass, %d" % mp.numMicePerPass
 
             numPasses = len(joint_angles) / mp.numMicePerPass
             likelihoods = np.zeros((numPasses*mp.numMicePerPass,), dtype='float32')
             posed_mice = np.zeros((numPasses*mp.numMicePerPass,mp.resolutionY, mp.resolutionX), dtype='float32') # FOR DEBUGGING ONLY
+
             for i in range(numPasses):
                 start = i*mp.numMicePerPass
                 end = start+mp.numMicePerPass
-                l,p = mp.get_likelihoods(joint_angles=joint_angles[start:end], \
+                l = mp.get_likelihoods(joint_angles=joint_angles[start:end], \
                                         scales=scales[start:end], \
                                         offsets=offsets[start:end], \
                                         rotations=rotations[start:end], \
                                         real_mouse_image=im[:,::-1].T.astype('float32'), \
-                                        save_poses=True)
+                                        save_poses=False)
 
                 likelihoods[i*mp.numMicePerPass:i*mp.numMicePerPass+mp.numMicePerPass] = l
-                posed_mice[i*mp.numMicePerPass:i*mp.numMicePerPass+mp.numMicePerPass] = p
-
-            idx = np.argsort(likelihoods)[::-1]
-            q = posed_mice[idx[0]]
-            r = posed_mice[idx[1]]
-            s = posed_mice[idx[2]]
-            q = np.hstack((im[:,::-1].T, q, r, s))
-            q = 254.0*q/q.max()
-            import Image
-            Image.fromarray(q.astype('uint8')).save("/home/dattalab/poses/%d.png" % stepnum)
-
-            # import pdb; pdb.set_trace()
 
             return likelihoods / 2000.0
+            # ================================================================================
 
         # Okay, initialize the particle filter (we're using a random walk particle filter)
         pf = particle_filter.ParticleFilter(
@@ -177,8 +164,4 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         self.save_progress(pf,pose_model,datapath,frame_range,means=particle_data)
 
 
-RandomWalkFixedNoiseCUDA((5,8000))
-# RandomWalkFixedNoiseCUDA((1000,2000))
-# RandomWalkFixedNoiseCUDA((2000,3000))
-# RandomWalkFixedNoiseCUDA((3000,4000))
-# RandomWalkFixedNoiseCUDA((4000,5000))
+RandomWalkFixedNoiseCUDA((5,1000))

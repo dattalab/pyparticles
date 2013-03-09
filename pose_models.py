@@ -322,7 +322,7 @@ class PoseModel_5Joints_XZ_forCUDA(PoseModelBase):
         self.default_renderer_pose = self.RendererPose(
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
-                s_w=12,s_l=18,s_h=200.,
+                s_w=0.15,s_l=0.225,s_h=200.,
                 **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
         super(PoseModel_5Joints_XZ_forCUDA,self).__init__()
