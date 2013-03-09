@@ -1,13 +1,13 @@
 import sys
 import os
-sys.path.append("/home/dattalab/Code/cuda-tests")
+# sys.path.append("/home/dattalab/Code/cuda-tests")
 
 from collections import namedtuple
 import numpy as np
 
 import pymouse
-from MouseData import MouseData
-from MousePoser import MousePoser
+from poser.MouseData import MouseData
+from poser.MousePoser import MousePoser
 
 from experiments import Experiment
 from pose_models import PoseModelBase, PoseModelMetaclass
@@ -183,7 +183,6 @@ class RandomWalkFixedNoiseCUDA(Experiment):
                     "datapath":datapath,
                     "code": inspect.getsource(self.__class__)}
                 db.save(progress_dict)
-
 
         # Save everything out once we're done. The means are the most important part right now!!
         # self.save_progress(pf,pose_model,datapath,frame_range,means=particle_data)
