@@ -366,8 +366,8 @@ if __name__ == "__main__":
     mp = MousePoser(mouseModel=m, maxNumBlocks=1)
     numPasses = 1
     ja = np.tile(mp.jointRotations_cpu, (numPasses,1))
-    # ja[:,:,0] += np.random.normal(size=(ja.shape[0],mp.numJoints), scale=10)
-    # ja[:,:,2] += np.random.normal(size=(ja.shape[0],mp.numJoints), scale=10)
+    ja[:,:,0] += np.random.normal(size=(ja.shape[0],mp.numJoints), scale=10)
+    ja[:,:,2] += np.random.normal(size=(ja.shape[0],mp.numJoints), scale=10)
     scales = np.ones((mp.numMicePerPass*numPasses,3), dtype='float32')
     scales[:,0] = 0.25
     scales[:,1] = 0.25

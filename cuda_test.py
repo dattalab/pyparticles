@@ -105,7 +105,13 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         # over every degree of freedom in our model. 
         def log_likelihood(stepnum,im,poses):
             joint_angles = mp.baseJointRotations_cpu + pose_model.get_joint_rotations(poses)
-            scales = np.clip(0,1,pose_model.get_scales(poses))
+            scales = pose_model.get_scales(poses)
+
+            # The X and Y scales are not allowed to be out of [0,1],
+            # because that inevitably causes memory access issues on the card.
+            # This is an open issue #4
+            scales[:,0] = np.clip(scales[:,0], 0, 1)
+            scales[:,1] = np.clip(scales[:,1], 0, 1)
             offsets = pose_model.get_offsets(poses)
             rotations = pose_model.get_rotations(poses)
 
@@ -116,20 +122,31 @@ class RandomWalkFixedNoiseCUDA(Experiment):
             likelihoods = np.zeros((numPasses*mp.numMicePerPass,), dtype='float32')
             posed_mice = np.zeros((numPasses*mp.numMicePerPass,mp.resolutionY, mp.resolutionX), dtype='float32') # FOR DEBUGGING ONLY
 
+
             for i in range(numPasses):
                 start = i*mp.numMicePerPass
                 end = start+mp.numMicePerPass
-                l = mp.get_likelihoods(joint_angles=joint_angles[start:end], \
+                l,p = mp.get_likelihoods(joint_angles=joint_angles[start:end], \
                                         scales=scales[start:end], \
                                         offsets=offsets[start:end], \
                                         rotations=rotations[start:end], \
                                         real_mouse_image=im[:,::-1].T.astype('float32'), \
-                                        save_poses=False)
-
+                                        save_poses=True)
+    
                 likelihoods[i*mp.numMicePerPass:i*mp.numMicePerPass+mp.numMicePerPass] = l
+                posed_mice[i*mp.numMicePerPass:i*mp.numMicePerPass+mp.numMicePerPass] = p
+
+            idx = np.argsort(likelihoods)[::-1]
+            q = posed_mice[idx[0]]
+            r = posed_mice[idx[1]]
+            s = posed_mice[idx[2]]
+            q = np.hstack((im[:,::-1].T, q, r, s))
+            q = 254.0*q/q.max()
+            import Image
+            Image.fromarray(q.astype('uint8')).save("/home/dattalab/poses/%d.png" % stepnum)
 
             return likelihoods / 2000.0
-            # ================================================================================
+
 
         # Okay, initialize the particle filter (we're using a random walk particle filter)
         pf = particle_filter.ParticleFilter(
@@ -156,7 +173,7 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         randomwalk_noisechol[:] = subsequent_randomwalk_noisechol[:]
 
         # TODO: REWRITE SAVE_PROGRESS TO USE MONGODB STUFF
-        self.save_progress(pf,pose_model,datapath,frame_range,means=[])
+        # self.save_progress(pf,pose_model,datapath,frame_range,means=[])
 
         # Now, this is the bulk of the work. Run through all frames, saving the means
         # at every 5 frames
