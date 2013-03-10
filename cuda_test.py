@@ -42,6 +42,9 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         # filter can move. Check out the methods and classes there.
         pose_model = pose_models.PoseModel_5Joints_XZ_forCUDA()
 
+        particle_fields = pose_model.ParticlePose._fields
+        joint_names = [j for j in particle_fields if 'psi_' in j]
+
         # The variances here define how widespread our guesses are, based off the previous guess.
         variances = {
             'x':             {'init':3.0,  'subsq':1.5},
@@ -53,9 +56,20 @@ class RandomWalkFixedNoiseCUDA(Experiment):
             's_l':           {'init':1e-12,  'subsq':1e-12},
             's_h':           {'init':1.0,  'subsq':1e-6}
         }        
-        particle_fields = pose_model.ParticlePose._fields
-        joint_names = [j for j in particle_fields if 'psi_' in j]
         [variances.update({j:{'init':20.0, 'subsq':5.0}}) for j in joint_names]
+
+        limits = {
+            'x':             (-10,10),
+            'y':             (-10,10),
+            'theta_yaw':     (-20, 20),
+            'z':             (-20,30),
+            'theta_roll':    (-10,10),
+            's_w':           (0.001, 1),
+            's_l':           (0.001, 1),
+            's_h':           (0.5, 500)
+        }        
+        [limits.update({j:(-15,15) for j in joint_names})]
+        minmaxpairs = [limits[k] for k in particle_fields]
 
         randomwalk_noisechol = np.diag([variances[p]['init'] for p in particle_fields])
         subsequent_randomwalk_noisechol = np.diag([variances[p]['subsq'] for p in particle_fields])
@@ -149,15 +163,27 @@ class RandomWalkFixedNoiseCUDA(Experiment):
 
 
         # Okay, initialize the particle filter (we're using a random walk particle filter)
+        # OLD NON-LIMITED PARTICLE FILTER
+        # pf = particle_filter.ParticleFilter(
+        #         pose_model.particle_pose_tuple_len,
+        #         cutoff,
+        #         log_likelihood,
+        #         [particle_filter.AR(
+        #             numlags=1,
+        #             previous_outputs=(pose_model.default_particle_pose,),
+        #             baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
+        #            ) for itr in range(num_particles_firststep)])
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
                 cutoff,
                 log_likelihood,
-                [particle_filter.AR(
+                [particle_filter.LimitedAR(
+                    minmaxpairs=minmaxpairs,
                     numlags=1,
                     previous_outputs=(pose_model.default_particle_pose,),
                     baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
                     ) for itr in range(num_particles_firststep)])
+
 
         # Do the first frame (we make a TON of guesses to get a good starting point)
         pf.step(images[0])
