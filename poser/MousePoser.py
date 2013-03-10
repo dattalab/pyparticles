@@ -363,12 +363,14 @@ class MousePoser(object):
 if __name__ == "__main__":
     from MouseData import MouseData
     m = MouseData(scenefile="mouse_mesh_low_poly3.npz")
-    mp = MousePoser(mouseModel=m, maxNumBlocks=30)
+    mp = MousePoser(mouseModel=m, maxNumBlocks=1)
     numPasses = 1
     ja = np.tile(mp.jointRotations_cpu, (numPasses,1))
-    ja[:,:,0] += np.random.normal(size=(ja.shape[0],mp.numJoints), scale=10)
-    ja[:,:,2] += np.random.normal(size=(ja.shape[0],mp.numJoints), scale=10)
+    # ja[:,:,0] += np.random.normal(size=(ja.shape[0],mp.numJoints), scale=10)
+    # ja[:,:,2] += np.random.normal(size=(ja.shape[0],mp.numJoints), scale=10)
     scales = np.ones((mp.numMicePerPass*numPasses,3), dtype='float32')
+    scales[:,0] = 0.25
+    scales[:,1] = 0.25
     offsets = np.zeros_like(scales)
     rotations = np.zeros_like(scales)
 
@@ -378,4 +380,4 @@ if __name__ == "__main__":
                             rotations=rotations, \
                             save_poses=True)
 
-    mp.benchmark()
+    # mp.benchmark()
