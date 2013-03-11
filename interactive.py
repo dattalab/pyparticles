@@ -1,4 +1,4 @@
-from __future__ import division
+om __future__ import division
 import numpy as np
 na = np.newaxis
 from matplotlib import pyplot as plt
@@ -124,6 +124,23 @@ def dumb_momentum_learnednoise():
     return interactive(5000,2500,particle_factory,plotfunc)
 
 
+
+def dumb_randomwalk_fixednoise():
+    noisechol = 10*np.eye(2)
+    initial_particles = [
+            pf.AR(
+                    numlags=1,
+                    previous_outputs=[np.zeros(2)],
+                    baseclass=lambda: \
+                        pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(noisechol=noisechol)),
+                    maxtracklen=10,
+                    ) for itr in range(10000)]
+
+    def plotfunc(particles,weights):
+        plottopk(particles,weights,5)
+        plotmeanpath(particles,weights)
+
+    return interactive(initial_particles,2500,plotfunc)
 
 def dumb_randomwalk_learnednoise():
     num_pseudoobs = 1000

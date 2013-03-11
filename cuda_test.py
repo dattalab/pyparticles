@@ -176,11 +176,13 @@ class RandomWalkFixedNoiseCUDA(Experiment):
                 pose_model.particle_pose_tuple_len,
                 cutoff,
                 log_likelihood,
+
                 [particle_filter.LimitedAR(
                     minmaxpairs=minmaxpairs,
-                    numlags=1,
+                    num_ar_lags=1,
                     previous_outputs=(pose_model.default_particle_pose,),
-                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
+                    baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol)),
+                    maxtracklen=lag,
                     ) for itr in range(num_particles_firststep)])
 
 
@@ -203,10 +205,10 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         # Now, this is the bulk of the work. Run through all frames, saving the means
         # at every 5 frames
         for i in progprint_xrange(lag,images.shape[0],perline=10):
-            particle_data[i-lag] = np.sum(pf.weights_norm[:,np.newaxis] * np.array([p.track[i-lag] for p in pf.particles]), axis=0)
+            particle_data[i-lag] = np.sum(pf.weights_norm[:,np.newaxis] * np.array([p.track[0] for p in pf.particles]), axis=0)
 
             print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+                    (i-lag,len(np.unique([p.track[0][0] for p in pf.particles])))
 
             pf.step(images[i])
 

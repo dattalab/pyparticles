@@ -6,3 +6,4 @@ renderer/data/frame*
 /results/*
 /requested_results
 /data
+*.pdf
