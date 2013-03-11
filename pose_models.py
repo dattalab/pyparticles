@@ -310,7 +310,8 @@ class PoseModel_5Joints_XZ_forCUDA(PoseModelBase):
             ['x','y','theta_yaw',
              'z','theta_roll','s_w','s_l','s_h',
             # 'psi_z3','psi_x4','psi_z4','psi_x5','psi_z5'])
-             'psi_x3','psi_z3','psi_x4','psi_z4','psi_x5','psi_z5'])
+            # 'psi_x3','psi_z3','psi_x4','psi_z4','psi_x5','psi_z5'])
+            'psi_z1', 'psi_z2', 'psi_x3','psi_z3','psi_x4','psi_z4','psi_x5','psi_z5'])
 
     RendererPose = namedtuple(
             'RendererPose',
@@ -322,7 +323,7 @@ class PoseModel_5Joints_XZ_forCUDA(PoseModelBase):
         self.default_renderer_pose = self.RendererPose(
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
-                s_w=0.15,s_l=0.225,s_h=200.,
+                s_w=0.2,s_l=0.225,s_h=200.,
                 **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
         super(PoseModel_5Joints_XZ_forCUDA,self).__init__()

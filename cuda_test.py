@@ -1,6 +1,5 @@
 import sys
 import os
-# sys.path.append("/home/dattalab/Code/cuda-tests")
 
 from collections import namedtuple
 import numpy as np
@@ -53,7 +52,7 @@ class RandomWalkFixedNoiseCUDA(Experiment):
             'z':             {'init':3.0,  'subsq':0.25},
             'theta_roll':    {'init':0.01, 'subsq':0.01},
             's_w':           {'init':0.025,  'subsq':1e-6},
-            's_l':           {'init':1e-12,  'subsq':1e-12},
+            's_l':           {'init':0.025,  'subsq':1e-6},
             's_h':           {'init':1.0,  'subsq':1e-6}
         }        
         [variances.update({j:{'init':20.0, 'subsq':5.0}}) for j in joint_names]
@@ -65,10 +64,21 @@ class RandomWalkFixedNoiseCUDA(Experiment):
             'z':             (-20,30),
             'theta_roll':    (-10,10),
             's_w':           (0.001, 1),
-            's_l':           (0.001, 1),
-            's_h':           (0.5, 500)
-        }        
-        [limits.update({j:(-15,15) for j in joint_names})]
+            's_l':           (0.15, 0.25),
+            's_h':           (0.5, 500),
+            'psi_z1':        (-50,30),
+            'psi_z2':        (-30,30),
+            'psi_z3':        (-60,60),
+            'psi_z4':        (-60,60),
+            'psi_z5':        (-60,60),
+            'psi_x1':        (-15,15),
+            'psi_x2':        (-15,15),
+            'psi_x3':        (-45,45),
+            'psi_x4':        (-60,60),
+            'psi_x5':        (-45, 45),
+
+        }
+
         minmaxpairs = [limits[k] for k in particle_fields]
 
         randomwalk_noisechol = np.diag([variances[p]['init'] for p in particle_fields])
@@ -81,13 +91,13 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         # MouseData contains information about the synthetic mouse (joint angles, skin vertices, etc)
         # MousePoser contains methods to pose a synthetic mouse
         m = MouseData(scenefile=os.path.abspath(pose_model.scenefilepath))
-        mp = MousePoser(mouseModel=m, maxNumBlocks=10, imageSize=(64,64))
+        mp = MousePoser(mouseModel=m, maxNumBlocks=10, maxNumThreads=256, imageSize=(64,64))
 
         # Then, we define how many particles we want to run
         # (particles are higher for the first step to start with a good guess)
         # numMicePerPass = 2560 or something, usually
-        num_particles_firststep = mp.numMicePerPass*8
-        num_particles = mp.numMicePerPass*4
+        num_particles_firststep = mp.numMicePerPass*20
+        num_particles = mp.numMicePerPass*5
         cutoff = mp.numMicePerPass*2
 
         # Load in our real data, extracted from the Kinect
@@ -136,7 +146,6 @@ class RandomWalkFixedNoiseCUDA(Experiment):
             likelihoods = np.zeros((numPasses*mp.numMicePerPass,), dtype='float32')
             posed_mice = np.zeros((numPasses*mp.numMicePerPass,mp.resolutionY, mp.resolutionX), dtype='float32') # FOR DEBUGGING ONLY
 
-
             for i in range(numPasses):
                 start = i*mp.numMicePerPass
                 end = start+mp.numMicePerPass
@@ -163,16 +172,6 @@ class RandomWalkFixedNoiseCUDA(Experiment):
 
 
         # Okay, initialize the particle filter (we're using a random walk particle filter)
-        # OLD NON-LIMITED PARTICLE FILTER
-        # pf = particle_filter.ParticleFilter(
-        #         pose_model.particle_pose_tuple_len,
-        #         cutoff,
-        #         log_likelihood,
-        #         [particle_filter.AR(
-        #             numlags=1,
-        #             previous_outputs=(pose_model.default_particle_pose,),
-        #             baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
-        #            ) for itr in range(num_particles_firststep)])
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
                 cutoff,
@@ -246,4 +245,4 @@ class RandomWalkFixedNoiseCUDA(Experiment):
 
 
 
-RandomWalkFixedNoiseCUDA((5,1000))
+RandomWalkFixedNoiseCUDA((45,1000))
