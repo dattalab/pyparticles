@@ -2,11 +2,11 @@ from __future__ import division
 import numpy as np
 na = np.newaxis
 from collections import deque
-import abc, warnings
+import abc, warnings, os
 
 from util.general import ibincount
 
-DEBUG = True
+DEBUG = os.getenv("DEBUG", False)
 
 # this is a great reference on techniques:
 # http://www.cs.berkeley.edu/~pabbeel/cs287-fa11/slides/particle-filters++_v2.pdf
@@ -90,6 +90,10 @@ class ParticleFilter(object):
             print Neff
 
         return Neff
+
+    @property
+    def n_surviving_particles(self):
+        return self._Nsurvive_history[-1][1]
 
     def _resample(self,method,num=None):
         num = (num if num is not None else len(self.particles))
