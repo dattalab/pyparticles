@@ -1,11 +1,15 @@
 import sys
 import os
-sys.path.append("/home/dattalab/Code/cuda-tests")
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(root,"cuda-tests"))
+sys.path.append(os.path.join(root,"pymouse"))
+
+print(os.path.join(root,"cuda-tests"))
 
 from collections import namedtuple
 import numpy as np
 
-import pymouse
+import Mousemodel
 from MouseData import MouseData
 from MousePoser import MousePoser
 
@@ -22,8 +26,7 @@ class RandomWalkFixedNoiseCUDA(Experiment):
     # Here's the run function.
     def run(self,frame_range):
         # First things first, we have to figure out where our mouse image data is coming from
-        datapath = os.path.abspath(os.path.join(os.path.dirname(__file__),"data"))
-
+        datapath = os.path.join(root,"data/depth_videos/syllable_sorted-id-0 (usage)_original-id-42.mp4")
 
 
         # This helps smooth tracks.
@@ -69,7 +72,7 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         cutoff = mp.numMicePerPass*2
 
         # Load in our real data, extracted from the Kinect
-        mm = pymouse.Mousemodel(datapath, 
+        mm = Mousemodel(datapath,
                                 n=np.max(frame_range),
                                 image_size=(mp.resolutionY,mp.resolutionX))
         mm.load_data()
@@ -126,8 +129,8 @@ class RandomWalkFixedNoiseCUDA(Experiment):
             s = posed_mice[idx[2]]
             q = np.hstack((im[:,::-1].T, q, r, s))
             q = 254.0*q/q.max()
-            import Image
-            Image.fromarray(q.astype('uint8')).save("/home/dattalab/poses/%d.png" % stepnum)
+            from PIL import Image
+            Image.fromarray(q.astype('uint8')).save(os.path.join(root,"data/poses/%d.png" % stepnum))
 
             # import pdb; pdb.set_trace()
 
@@ -166,8 +169,8 @@ class RandomWalkFixedNoiseCUDA(Experiment):
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             particle_data[i-lag] = np.sum(pf.weights_norm[:,np.newaxis] * np.array([p.track[0] for p in pf.particles]), axis=0)
 
-            print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,len(np.unique([p.track[0][0] for p in pf.particles])))
+            print('\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[0][0] for p in pf.particles]))))
 
             pf.step(images[i])
 

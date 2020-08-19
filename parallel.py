@@ -18,7 +18,7 @@ except:
     images, xytheta = experiments._load_data("%(datapath)s",%(frame_range)s)
 ''' % {'scenefile':scenefile_path_relative_to_engines,'datapath':behavior_data_path_relative_to_engines,'frame_range':frame_range}
 
-        print codestr
+        print(codestr)
         dv.execute(codestr,block=True)
 
     return dv

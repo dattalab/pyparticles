@@ -44,6 +44,7 @@ module load.
 # instance members for convenient inspection, and module-load-time checking that
 # the PoseModel has the right class members.
 
+
 class PoseModelMetaclass(type):
     def __new__(cls,name,bases,dct):
         assert 'scenefilepath' in dct or any([hasattr(b,'scenefilepath') for b in bases])
@@ -57,7 +58,9 @@ class PoseModelMetaclass(type):
         dct['renderer_pose_tuple_len'] = len(RP._fields)
         return super(PoseModelMetaclass,cls).__new__(cls,name,bases,dct)
 
+
 class PoseModelBase(object):
+
     def expand_poses(self,poses):
         expanded = np.empty((poses.shape[0],self.renderer_pose_tuple_len))
         expanded[:,self._default_indices] = np.array(self.default_renderer_pose)[self._default_indices]
@@ -65,7 +68,7 @@ class PoseModelBase(object):
         return expanded
 
     def __init__(self):
-        self.default_particle_pose = self.ParticlePose(*[self.default_renderer_pose.__dict__[f]
+        self.default_particle_pose = self.ParticlePose(*[self.default_renderer_pose._asdict()[f]
             for f in self.ParticlePose._fields])
 
     # namedtuples break pickling!
@@ -178,7 +181,7 @@ class PoseModel1(PoseModelBase):
             'RendererPose',
             ['x','y','theta'] + ['psi_%s%d'%(v,i) for i in range(1,10) for v in ['x','y','z']])
 
-    del i,v
+    ##del i,v
 
     def __init__(self):
         f = np.load(self.scenefilepath)
@@ -186,7 +189,7 @@ class PoseModel1(PoseModelBase):
 
         self.default_renderer_pose = self.RendererPose(
                 x=0.,y=0.,theta=0.,
-                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,10) for j,v in enumerate(['x','y','z'])))
+            *dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,10) for j,v in enumerate(['x','y','z'])))
 
         super(PoseModel3,self).__init__()
 
@@ -210,7 +213,7 @@ class PoseModel2(PoseModelBase):
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,7) for v in ['x','y','z']])
 
-    del i,v
+    #del i,v
 
     def __init__(self):
         f = np.load(self.scenefilepath)
@@ -220,7 +223,7 @@ class PoseModel2(PoseModelBase):
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
                 s_w=18.,s_l=18.,s_h=200.,
-                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+                *dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
         super(PoseModel3,self).__init__()
 
@@ -247,7 +250,7 @@ class PoseModel3(PoseModelBase):
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
 
-    del i,v
+    #del i,v
 
     def __init__(self):
         jr = np.load(self.scenefilepath)['joint_rotations']
@@ -255,18 +258,16 @@ class PoseModel3(PoseModelBase):
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
                 s_w=18.,s_l=18.,s_h=200.,
-                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+                *dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
         super(PoseModel3,self).__init__()
 
 
-class PoseModel_5Joint_origweights_AW(PoseModelBase):
+class PoseModel_5Joint_origweights_AW(PoseModelBase,metaclass=PoseModelMetaclass):
     '''
-    Five joints, with original weights, which could 
+    Five joints, with original weights, which could
     don't propose over theta_roll or first two joints' y angles
     '''
-
-    __metaclass__ = PoseModelMetaclass
 
     scenefilepath = "renderer/data/mouse_mesh_low_poly3.npz"
 
@@ -281,7 +282,7 @@ class PoseModel_5Joint_origweights_AW(PoseModelBase):
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
 
-    del i,v
+    #del i,v
 
     def __init__(self):
         jr = np.load(self.scenefilepath)['joint_rotations']
@@ -294,13 +295,11 @@ class PoseModel_5Joint_origweights_AW(PoseModelBase):
         super(PoseModel_5Joint_origweights_AW,self).__init__()
 
 
-class PoseModel_5Joints_XZ_forCUDA(PoseModelBase):
+class PoseModel_5Joints_XZ_forCUDA(PoseModelBase, metaclass=PoseModelMetaclass):
     '''
     Five joints, with original weights, which could 
     don't propose over theta_roll or first two joints' y angles
     '''
-
-    __metaclass__ = PoseModelMetaclass
 
     scenefilepath = "renderer/data/mouse_mesh_low_poly3.npz"
     # scenefilepath = "renderer/data/mouse_mesh_low_poly-1-20-2013.npz"
@@ -323,13 +322,13 @@ class PoseModel_5Joints_XZ_forCUDA(PoseModelBase):
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
                 s_w=12,s_l=18,s_h=200.,
-                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+                *dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
         super(PoseModel_5Joints_XZ_forCUDA,self).__init__()
 
 
-class PoseModel_4Joint_origweights_AW(PoseModelBase):
-    __metaclass__ = PoseModelMetaclass
+class PoseModel_4Joint_origweights_AW(PoseModelBase,metaclass=PoseModelMetaclass):
+    #__metaclass__ = PoseModelMetaclass
 
     scenefilepath = "renderer/data/mouse_mesh_low_poly3.npz"
 
@@ -344,7 +343,7 @@ class PoseModel_4Joint_origweights_AW(PoseModelBase):
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
 
-    del i,v
+    #del i,v
 
     def __init__(self):
         jr = np.load(self.scenefilepath)['joint_rotations']
@@ -373,7 +372,8 @@ class PoseModel_3Joint_origweights_AW(PoseModelBase):
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
 
-    del i,v
+    #del i,v
+
 
     def __init__(self):
         jr = np.load(self.scenefilepath)['joint_rotations']
@@ -381,7 +381,7 @@ class PoseModel_3Joint_origweights_AW(PoseModelBase):
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
                 s_w=18.,s_l=18.,s_h=200.,
-                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+                *dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
         super(PoseModel_3Joint_origweights_AW,self).__init__()
 
@@ -407,7 +407,7 @@ class PoseModel10(PoseModelBase):
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
 
-    del i,v
+    #del i,v
 
     def __init__(self):
         jr = np.load(self.scenefilepath)['joint_rotations']
@@ -415,7 +415,7 @@ class PoseModel10(PoseModelBase):
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
                 s_w=13,s_l=14,s_h=200.,
-                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+                *dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
         super(PoseModel10,self).__init__()
 
@@ -435,7 +435,7 @@ class OneJoint(PoseModelBase):
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
 
-    del i,v
+    #del i,v
 
     def __init__(self):
         jr = np.load(self.scenefilepath)['joint_rotations']
@@ -443,7 +443,7 @@ class OneJoint(PoseModelBase):
                 x=0.,y=0.,z=0.,
                 theta_yaw=0.,theta_roll=0.,
                 s_w=18.,s_l=18.,s_h=200.,
-                **dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
+                *dict(('psi_%s%d'%(v,i),jr[i-1,j]) for i in range(1,6) for j,v in enumerate(['x','y','z'])))
 
         super(OneJoint,self).__init__()
 
@@ -464,7 +464,7 @@ class ThreeJoints(PoseModelBase):
             ['x','y','z','theta_yaw','theta_roll','s_w','s_l','s_h'] + \
              ['psi_%s%d'%(v,i) for i in range(1,6) for v in ['x','y','z']])
 
-    del i,v
+    #del i,v
 
     def expand_poses(self,poses):
         expanded = np.empty((poses.shape[0],self.renderer_pose_tuple_len))

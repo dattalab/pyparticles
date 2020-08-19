@@ -2,9 +2,11 @@ from __future__ import division
 import os
 import numpy as np
 na = np.newaxis
-import Image, cPickle, os, shutil
+import  os, shutil
+import _pickle as cPickle
+from PIL import Image
 
-from renderer.load_data import load_behavior_data
+from renderer.load_data import load_new_behavior_data
 from renderer.renderer import MouseScene
 
 import particle_filter
@@ -38,23 +40,43 @@ def frozentrack_movie(pf_file,offset=0):
     return movie_sidebyside_cuda(track,pose_model,datapath,frame_range, offset=offset)
     # return movie(track,pose_model,datapath,frame_range,offset=offset)
 
-def meantrack_movie(pf_file):
-    with open(pf_file,'r') as infile:
-        it = cPickle.load(infile)
+def meantrack_movie(pf_file, dest_file):
+    infile = open(pf_file, 'rb')
+    with infile as f:
+        it = cPickle.load(f, encoding="bytes")
+    infile.close()
 
-        if isinstance(it,tuple):
-            # old version
-            pf, pose_model, datapath, frame_range = cPickle.load(infile)
-        elif isinstance(it,dict):
-            pf = it['particlefilter']
-            pose_model = it['pose_model']
-            datapath = it['datapath']
-            frame_range = it['frame_range']
+    if isinstance(it,tuple):
+        # old version
+        pf, pose_model, datapath, frame_range = cPickle.load(infile)
+    elif isinstance(it,dict):
+        pf = it['particlefilter']
+        pose_model = it['pose_model']
+        datapath = it['datapath']
+        frame_range = it['frame_range']
 
     track = particle_filter.meantrack(pf)
-    return movie(track,pose_model,datapath,frame_range)
+    return movie(track,pose_model,datapath,frame_range, dest_file)
 
-def movie_sidebyside(track,pose_model,datapath,frame_range):
+def meantrack_sidebyside_movie(pf_file, dest_file):
+    infile = open(pf_file, 'rb')
+    with infile as f:
+        it = cPickle.load(f, encoding="bytes")
+    infile.close()
+
+    if isinstance(it,tuple):
+        # old version
+        pf, pose_model, datapath, frame_range = cPickle.load(infile)
+    elif isinstance(it,dict):
+        pf = it['particlefilter']
+        pose_model = it['pose_model']
+        datapath = it['datapath']
+        frame_range = it['frame_range']
+
+    track = particle_filter.meantrack(pf)
+    return movie_sidebyside(track,pose_model,datapath,frame_range, dest_file)
+
+def movie_sidebyside(track,pose_model,datapath,frame_range, dest_file):
     images, xytheta = _load_data(datapath,(frame_range[0],frame_range[0]+track.shape[0]-1))
 
     track2 = track.copy()
@@ -72,7 +94,8 @@ def movie_sidebyside(track,pose_model,datapath,frame_range):
     scaling = posed_mice.max()
 
     for i in range(len(posed_mice)):
-        Image.fromarray((np.hstack((images[i][:,::-1].T,posed_mice[i]))/scaling*255.0).astype('uint8')).save(os.path.join(dest_dir2, "%03d.png" % i))
+        Image.fromarray((np.hstack((images[i][:,::-1],posed_mice[i]))/scaling*255.0).astype('uint8')).save(os.path.join(dest_file, "%03d.png" % i))
+
     
 
 def movie_sidebyside_cuda(track,pose_model,datapath,frame_range):
@@ -127,7 +150,7 @@ def movie_sidebyside_cuda(track,pose_model,datapath,frame_range):
         Image.fromarray((np.hstack((images[i][:,::-1].T,posed_mice[i]))/scaling*255.0).astype('uint8')).save(os.path.join(dest_dir2, "%03d.png" % i))
 
 
-def movie(track,pose_model,datapath,frame_range,offset=0):
+def movie(track,pose_model,datapath,frame_range,dest_file,offset=0):
     images, xytheta = _load_data(datapath,(frame_range[0],frame_range[0]+track.shape[0]-1))
 
     track2 = track.copy()
@@ -162,7 +185,7 @@ def movie(track,pose_model,datapath,frame_range,offset=0):
 
         # shutil.rmtree(dest_dir)
         # os.makedirs(dest_dir)
-        Image.fromarray(I.astype('uint8')).save(os.path.join(dest_dir, "%03d.png" % i))
+        Image.fromarray(I.astype('uint8')).save(os.path.join(dest_file, "%03d.png" % i))
 
 ######################
 #  Common Utilities  #
@@ -183,11 +206,12 @@ def _build_mousescene(scenefilepath):
     return ms
 
 def _load_data(datapath,frame_range):
-    xy = load_behavior_data(datapath,frame_range[1]+1,'centroid')[frame_range[0]:]
-    theta = load_behavior_data(datapath,frame_range[1]+1,'angle')[frame_range[0]:]
-    xytheta = np.concatenate((xy,theta[:,na]),axis=1)
-    images = load_behavior_data(datapath,frame_range[1]+1,'images').astype('float32')[frame_range[0]:]
-    return images, xytheta
+    xy = load_new_behavior_data(datapath, frame_range[1] + 1, 'centroid')[frame_range[0]:]
+    theta = load_new_behavior_data(datapath, frame_range[1] + 1, 'angle')[frame_range[0]:]
+    xytheta = np.concatenate((xy, theta[:, na]), axis=1)
+    images = load_new_behavior_data(datapath, frame_range[1] + 1, 'images').astype('float32')[frame_range[0]:]
+    images_rot = np.array([image.T[::-1, :] for image in images])
+    return images_rot, xytheta
 
 
 def embed_image(img, x, y, theta, large_img_size=(240,320)):

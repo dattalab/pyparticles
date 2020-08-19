@@ -87,7 +87,7 @@ class ParticleFilter(object):
         self._Neff_history.append((self.numsteps,Neff))
 
         if DEBUG:
-            print Neff
+            print(Neff)
 
         return Neff
 
@@ -110,7 +110,7 @@ class ParticleFilter(object):
         self._Nsurvive_history.append((self.numsteps,len(np.unique(sources))))
 
         if DEBUG:
-            print self._Nsurvive_history[-1][1]
+            print(self._Nsurvive_history[-1][1])
 
     def _independent_sources(self,num):
         return ibincount(np.random.multinomial(num,self.weights_norm))

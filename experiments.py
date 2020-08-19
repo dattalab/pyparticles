@@ -1,10 +1,11 @@
 from __future__ import division
 import numpy as np
 na = np.newaxis
-import inspect, shutil, os, abc, cPickle, datetime, warnings
+import inspect, shutil, os, abc, datetime, warnings
+import _pickle as cPickle
 
 from renderer.renderer import MouseScene
-from renderer.load_data import load_behavior_data
+from renderer.load_data import load_behavior_data, load_new_behavior_data
 
 import pose_models
 import particle_filter
@@ -41,7 +42,7 @@ class Experiment(object):
             ))
 
         outfilename = os.path.join(self.cachepath(frame_range),str(particlefilter.numsteps))
-        with open(outfilename,'w') as outfile:
+        with open(outfilename,'wb') as outfile:
             cPickle.dump(dct,outfile,protocol=2)
 
         descripfilename = os.path.join(self.cachepath(frame_range),'description.txt')
@@ -64,7 +65,7 @@ class Experiment(object):
 
     def load_most_recent_progress(self,frame_range):
         warnings.warn('unteseted, unused')
-        raise NotImplementedError, 'outdated, needs new pickle file format'
+        raise NotImplementedError('outdated, needs new pickle file format')
         most_recent_filename = os.path.join(self.cachepath(frame_range),
                 max([int(x) for x in os.listdir(self.cachepath(frame_range)) if x.isdigit()]))
         with open(os.path.join(self.cachepath(frame_range),most_recent_filename),'r') as infile:
@@ -74,27 +75,28 @@ class Experiment(object):
     ### don't override this stuff
 
     def __init__(self,frame_range):
-        print 'results directory: %s' % self.cachepath(frame_range)
+        print('results directory: %s' % self.cachepath(frame_range))
 
         if os.path.exists(self.cachepath(frame_range)):
-            response = raw_input('cache file exists: [o]verwrite, [r]esume, or do [N]othing? ').lower()
+            response = input('cache file exists: [o]verwrite, [r]esume, or do [N]othing? ').lower()
             if response == 'r':
                 self.resume(frame_range)
             elif response == 'o':
                 shutil.rmtree(self.cachepath(frame_range))
             else:
-                print 'did nothing'
+                print('did nothing')
                 return
 
         os.makedirs(self.cachepath(frame_range))
 
         with open(os.path.join(self.cachepath(frame_range),'code.py'),'w') as outfile:
-            outfile.write(inspect.getsource(self.__class__))
+            #outfile.write(inspect.getsource(self.__class__))
+            outfile.write(inspect.getsource(inspect.getfile))
 
         self.run(frame_range)
 
     def cachepath(self,frame_range):
-        return os.path.join('results',str(abs(hash(inspect.getsource(self.__class__)))) + ('.%d.%d' % frame_range))
+        return os.path.join('results',str(abs(hash(inspect.getsource(inspect.getfile)))) + ('.%d.%d' % frame_range))
 
 #################
 #  Experiments  #
@@ -156,8 +158,8 @@ class SideInfoFixedNoise(Experiment):
                 self.save_progress(pf,pose_model,datapath,frame_range)
             pf.step(images[i],particle_kwargs={'sideinfo':xytheta[i]})
 
-            print len(np.unique([p.track[1][0] for p in pf.particles]))
-            print ''
+            print(len(np.unique([p.track[1][0] for p in pf.particles])))
+            print('')
 
         self.save_progress(pf,frame_range)
 
@@ -206,13 +208,14 @@ class RandomWalkFixedNoise(Experiment):
                 self.save_progress(pf,pose_model,datapath,frame_range)
             pf.step(images[i])
 
-            print len(np.unique([p.track[1][0] for p in pf.particles]))
-            print ''
+            print(len(np.unique([p.track[1][0] for p in pf.particles])))
+            print('')
 
 class RandomWalkFixedNoiseFrozenTrack(Experiment):
     # should look a lot like RandomWalkFixedNoise
     def run(self,frame_range):
-        datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        datapath = os.path.join(root,"data/extracted_data/2019-03-20_17-31-38_saline_example_0_000070_results_00.h5")
 
         num_particles_firststep = 1024*80
         num_particles = 1024*60
@@ -262,8 +265,8 @@ class RandomWalkFixedNoiseFrozenTrack(Experiment):
         means = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
-            print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+            print('\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles]))))
 
             pf.step(images[i])
 
@@ -275,7 +278,7 @@ class RandomWalkFixedNoiseFrozenTrack(Experiment):
 class RandomWalkFixedNoiseFrozenTrackParallel(Experiment):
     # should look a lot like RandomWalkFixedNoise
     def run(self,frame_range):
-        raw_input('be sure engines are started in git root!')
+        input('be sure engines are started in git root!')
 
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
@@ -331,8 +334,8 @@ class RandomWalkFixedNoiseFrozenTrackParallel(Experiment):
         means = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
-            print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+            print('\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles]))))
 
             pf.step(images[i])
 
@@ -347,7 +350,8 @@ class RandomWalkFixedNoiseFrozenTrackParallel(Experiment):
 class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
     # should look a lot like RandomWalkFixedNoise
     def run(self,frame_range):
-        datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        datapath = os.path.join(root, "data/extracted_data/2019-03-20_17-31-38_saline_example_0_000070_results_00.h5")
 
         num_particles_firststep = 1024*10
         num_particles = 1024*4
@@ -377,8 +381,6 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
         # TODO check z size
         # TODO try cutting scale, fit on first 10 or so
 
-        
-
         _build_mousescene(pose_model.scenefilepath)
         images, xytheta = _load_data(datapath,frame_range)
         
@@ -396,7 +398,7 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
                 cutoff,
                 log_likelihood,
                 [particle_filter.AR(
-                    numlags=1,
+                    num_ar_lags=1,
                     previous_outputs=(pose_model.default_particle_pose,),
                     baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
                     ) for itr in range(num_particles_firststep)])
@@ -413,8 +415,8 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
         means = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
-            print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+            print('\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles]))))
 
             pf.step(images[i])
 
@@ -427,9 +429,8 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
 class RandomWalkFixedNoiseParallelSimplified(Experiment):
     # combo of previous two
     def run(self,frame_range):
-        raw_input('be sure engines are started in git root!')
-
-        datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        datapath = os.path.join(root, "data/extracted_data/2019-03-20_17-31-38_saline_example_0_000070_results_00.h5")
 
         num_particles_firststep = 1024*40
         num_particles = 1024*20
@@ -464,21 +465,25 @@ class RandomWalkFixedNoiseParallelSimplified(Experiment):
         pose_model.default_particle_pose = \
             pose_model.default_particle_pose._replace(theta_yaw=xytheta[0,2],x=xytheta[0,0],y=xytheta[0,1])
 
-        import parallel
-        dv = parallel.go_parallel(pose_model.scenefilepath,datapath,frame_range)
-        def log_likelihood(stepnum,_,poses):
-            dv.scatter('poses',pose_model.expand_poses(poses),block=True)
-            dv.execute('''likelihoods = ms.get_likelihood(images[%d],particle_data=poses,
-                                                x=xytheta[%d,0],y=xytheta[%d,1],theta=xytheta[%d,2])/2500.'''
-                    % (stepnum,stepnum,stepnum,stepnum),block=True)
-            return dv.gather('likelihoods',block=True)
+        # import parallel
+        # dv = parallel.go_parallel(pose_model.scenefilepath,datapath,frame_range)
+        # def log_likelihood(stepnum,_,poses):
+        #     dv.scatter('poses',pose_model.expand_poses(poses),block=True)
+        #     dv.execute('''likelihoods = ms.get_likelihood(images[%d],particle_data=poses,
+        #                                         x=xytheta[%d,0],y=xytheta[%d,1],theta=xytheta[%d,2])/2500.'''
+        #             % (stepnum,stepnum,stepnum,stepnum),block=True)
+        #     return dv.gather('likelihoods',block=True)
+
+        def log_likelihood(stepnum,im,poses):
+            return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
+                x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/2500.
 
         pf = particle_filter.ParticleFilter(
                 pose_model.particle_pose_tuple_len,
                 cutoff,
                 log_likelihood,
                 [particle_filter.AR(
-                    numlags=1,
+                    num_ar_lags=1,
                     previous_outputs=(pose_model.default_particle_pose,),
                     baseclass=lambda: pm.RandomWalk(noiseclass=lambda: pd.FixedNoise(randomwalk_noisechol))
                     ) for itr in range(num_particles_firststep)])
@@ -495,8 +500,8 @@ class RandomWalkFixedNoiseParallelSimplified(Experiment):
         means = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
-            print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+            print('\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles]))))
 
             pf.step(images[i])
 
@@ -509,7 +514,7 @@ class RandomWalkFixedNoiseParallelSimplified(Experiment):
 class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
     # should look a lot like RandomWalkFixedNoise
     def run(self,frame_range):
-        raw_input('be sure engines are started in git root!')
+        input('be sure engines are started in git root!')
 
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
@@ -584,8 +589,8 @@ class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
         means = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
-            print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+            print('\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles]))))
 
             pf.step(images[i])
 
@@ -597,7 +602,7 @@ class MomentumLearnedNoiseFrozenTrackParallel(Experiment):
 
 class MomentumLearnedNoiseParallelSimplified(Experiment):
     def run(self,frame_range):
-        raw_input('be sure engines are started in git root!')
+        input('be sure engines are started in git root!')
 
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
@@ -684,8 +689,8 @@ class MomentumLearnedNoiseParallelSimplified(Experiment):
         means = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
-            print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+            print('\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles]))))
 
             pf.step(images[i])
 
@@ -697,7 +702,7 @@ class MomentumLearnedNoiseParallelSimplified(Experiment):
 
 class MomentumLearnedNoiseParallelSuperSimplified(Experiment):
     def run(self,frame_range):
-        raw_input('be sure engines are started in git root!')
+        input('be sure engines are started in git root!')
 
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
@@ -784,8 +789,8 @@ class MomentumLearnedNoiseParallelSuperSimplified(Experiment):
         means = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
-            print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+            print('\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles]))))
 
             pf.step(images[i])
 
@@ -797,7 +802,7 @@ class MomentumLearnedNoiseParallelSuperSimplified(Experiment):
 
 class OneJoint(Experiment):
     def run(self,frame_range):
-        raw_input('be sure engines are started in git root!')
+        input('be sure engines are started in git root!')
 
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
@@ -894,7 +899,7 @@ class OneJoint(Experiment):
 
 class ThreeJoints(Experiment):
     def run(self,frame_range):
-        raw_input('be sure engines are started in git root!')
+        input('be sure engines are started in git root!')
 
         datapath = os.path.join(os.path.dirname(__file__),"Test Data")
 
@@ -978,7 +983,7 @@ class ThreeJoints(Experiment):
         traces = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             traces.append((i,[p.track[-lag:] for p in pf.particles]))
-            print 'unique: %d' % len(np.unique([p.track[-lag] for p in pf.particles]))
+            print('unique: %d' % len(np.unique([p.track[-lag] for p in pf.particles])))
 
             pf.step(images[i])
 
@@ -1059,9 +1064,8 @@ class RandomWalkWithInjection(Experiment):
             # step
             pf.step(images[i],particle_kwargs={'sideinfo':xytheta[i]})
 
-            # print
-            print len(np.unique([p.track[1][0] for p in pf.particles]))
-            print ''
+            # print(            print len(np.unique([p.track[1][0] for p in pf.particles])))
+            print('')
 
 
 class RandomWalkLearnedNoise(Experiment):
@@ -1114,8 +1118,8 @@ class RandomWalkLearnedNoise(Experiment):
                 self.save_progress(pf,pose_model,datapath,frame_range)
             pf.step(images[i])
 
-            print len(np.unique([p.track[1][0] for p in pf.particles]))
-            print ''
+            print(len(np.unique([p.track[1][0] for p in pf.particles])))
+            print('')
 
 
 class Smarticles(Experiment):
@@ -1163,7 +1167,7 @@ class Smarticles(Experiment):
 
         ### now we build AR particles and a new particle filter
 
-        print 'changing to AR now!'
+        print('changing to AR now!')
 
         from numpy.lib.stride_tricks import as_strided as ast
         def AR_striding(data,nlags):
@@ -1230,10 +1234,10 @@ def _build_mousescene(scenefilepath):
     return ms
 
 def _load_data(datapath,frame_range):
-    xy = load_behavior_data(datapath,frame_range[1]+1,'centroid')[frame_range[0]:]
-    theta = load_behavior_data(datapath,frame_range[1]+1,'angle')[frame_range[0]:]
-    xytheta = np.concatenate((xy,theta[:,na]),axis=1)
-    images = load_behavior_data(datapath,frame_range[1]+1,'images').astype('float32')[frame_range[0]:]
-    images = np.array([image.T[::-1,:].astype('float32') for image in images])
-    return images, xytheta
+    xy = load_new_behavior_data(datapath, frame_range[1] + 1, 'centroid')[frame_range[0]:]
+    theta = load_new_behavior_data(datapath, frame_range[1] + 1, 'angle')[frame_range[0]:]
+    xytheta = np.concatenate((xy, theta[:, na]), axis=1)
+    images = load_new_behavior_data(datapath, frame_range[1] + 1, 'images').astype('float32')[frame_range[0]:]
+    images_rot = np.array([image.T[::-1, :] for image in images])
+    return images_rot, xytheta
 

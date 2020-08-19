@@ -166,7 +166,7 @@ class MNIWAR(PredictiveDistribution):
             # assert np.allclose(self.sigma_n,self.sigma_n.T) and (np.linalg.eigvals(self.sigma_n) > 0).all()
             # assert np.allclose(self.K_n,self.K_n.T) and (np.linalg.eigvals(self.K_n) > 0).all()
         except AssertionError:
-            print 'WARNING: particle exploded'
+            print('WARNING: particle exploded')
             self._broken = True
 
     def _sample(self,lagged_outputs):
@@ -176,7 +176,7 @@ class MNIWAR(PredictiveDistribution):
                 A,sigma = sample_mniw(self.n,self.sigma_n,self.M_n,np.linalg.inv(self.K_n))
                 return A.dot(ylags) + np.linalg.cholesky(sigma).dot(np.random.randn(sigma.shape[0]))
             except np.linalg.LinAlgError:
-                print 'WARNING: particle broke'
+                print('WARNING: particle broke')
                 self._broken = True
         return -99999*np.ones(self.M_n.shape[0])
 

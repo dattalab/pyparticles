@@ -1,8 +1,23 @@
+from renderer.renderer import MouseScene
+from renderer.load_data import load_behavior_data
+
+import pose_models
+import particle_filter
+import predictive_models as pm
+import predictive_distributions as pd
+from util.text import progprint_xrange
+
+import numpy as np
+na = np.newaxis
+
 # ==================================================
 #                     SERIAL
 # ==================================================
 # This is how we do things serially
+import os
 import experiments
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 experiments.RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified((5,100)).run((5,100))
 # This saves data into results/{HASH}/
 # where HASH is randomly generated for that experiment (see experiments.cachepath())
@@ -14,11 +29,12 @@ experiments.RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified((5,100)).run((
 
 
 # Let's take one and see what's in it.
-import cPickle
+import _pickle as cPickle
+
 infile = open("/Users/Alex/Code/hsmm-particlefilters/results/1834870540556565875/101")
 thedict = cPickle.load(infile)
 infile.close()
-print thedict.keys()
+print(thedict.keys())
 
 # Okay, all we care about is the mean track spit out by the particle filter.
 # NOTE: there's a lag built-in, which is how we get better particle tracks.
@@ -33,12 +49,12 @@ meantrack = np.asarray(thedict['means'])
 # ==================================================
 #                     PARALLEL
 # ==================================================
-import experiments
-import os # HAAAAACK MATT GO LIKE DIS :()
+#import experiments
+#import os # HAAAAACK MATT GO LIKE DIS :()
 # We first need to start some ipcluster instances (here, we do it locally)
-os.system("ipcluster start --n=4 &")
+#os.system("ipcluster start --n=4 &")
 # Run a parallel fixed noise experiment
-experiments.RandomWalkFixedNoiseParallelSimplified((5,100)).run((5,100))
+#experiments.RandomWalkFixedNoiseParallelSimplified((5,100)).run((5,100))
 
 
 
@@ -56,7 +72,7 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
 	# Here's the run function.
     def run(self,frame_range):
     	# First things first, we have to figure out where our mouse image data is coming from
-        datapath = os.path.join(os.path.dirname(__file__),"Test Data")
+        datapath = os.path.join(root,"data/depth_videos/syllable_sorted-id-0 (usage)_original-id-42.mp4")
 
         # Then, we define how many particles we want to run
         # (particles are higher for the first step to start with a good guess)
@@ -114,7 +130,7 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
         # to "renderer poses". This is only important because we don't propose
         # over every degree of freedom in our model. 
         def log_likelihood(stepnum,im,poses):
-            return mp.get_likelihood()
+            #return mp.get_likelihood()
             return ms.get_likelihood(im,particle_data=pose_model.expand_poses(poses),
                 x=xytheta[stepnum,0],y=xytheta[stepnum,1],theta=xytheta[stepnum,2])/2000.
 
@@ -149,8 +165,8 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
         means = []
         for i in progprint_xrange(lag,images.shape[0],perline=10):
             means.append(np.sum(pf.weights_norm[:,na] * np.array([p.track[i-lag] for p in pf.particles]),axis=0))
-            print '\nsaved a mean for index %d with %d unique particles!\n' % \
-                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles])))
+            print('\nsaved a mean for index %d with %d unique particles!\n' % \
+                    (i-lag,len(np.unique([p.track[i-15][0] for p in pf.particles]))))
 
             pf.step(images[i])
 
@@ -160,3 +176,29 @@ class RandomWalkFixedNoiseFrozenTrack_AW_5Joints_simplified(Experiment):
         # Save everything out once we're done. The means are the most important part right now!!
         self.save_progress(pf,pose_model,datapath,frame_range,means=means)
 
+
+
+
+######################
+#  Common Utilities  #
+######################
+
+msNumRows, msNumCols = 32,32
+ms = None
+def _build_mousescene(scenefilepath):
+    global ms
+    if ms is None:
+        ms = MouseScene(scenefilepath, mouse_width=80, mouse_height=80, \
+                        scale_width = 18.0, scale_height = 200.0,
+                        scale_length = 18.0, \
+                        numCols=msNumCols, numRows=msNumRows, useFramebuffer=True,showTiming=False)
+        ms.gl_init()
+    return ms
+
+def _load_data(datapath,frame_range):
+    xy = load_behavior_data(datapath,frame_range[1]+1,'centroid')[frame_range[0]:]
+    theta = load_behavior_data(datapath,frame_range[1]+1,'angle')[frame_range[0]:]
+    xytheta = np.concatenate((xy,theta[:,na]),axis=1)
+    images = load_behavior_data(datapath,frame_range[1]+1,'images').astype('float32')[frame_range[0]:]
+    images = np.array([image.T[::-1,:].astype('float32') for image in images])
+    return images, xytheta
